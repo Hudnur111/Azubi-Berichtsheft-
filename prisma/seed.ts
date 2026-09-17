@@ -1,4 +1,4 @@
-/* Seed: Admin-Account + optionale Demo-Daten. Aufruf: npm run db:seed */
+/* Seed: Standard-Zugänge + optionale Demo-Daten. Aufruf: npm run db:seed */
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { addDays, getISOWeek, getISOWeekYear, startOfISOWeek, endOfISOWeek, subWeeks } from "date-fns";
@@ -7,14 +7,16 @@ const db = new PrismaClient();
 const hash = (p: string) => bcrypt.hash(p, 12);
 
 async function main() {
+  // Standard-Zugänge (Benutzername "Admin", Passwort "Start1234!") – je Portal ein Account
+  const startPw = await hash(process.env.SEED_ADMIN_PASSWORD ?? "Start1234!");
   const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com").toLowerCase();
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "Admin123!";
   const admin = await db.user.upsert({
-    where: { email: adminEmail },
+    where: { username_loginGroup: { username: "Admin", loginGroup: "STAFF" } },
     update: {},
-    create: { email: adminEmail, passwordHash: await hash(adminPassword), firstName: "System", lastName: "Admin", role: "ADMIN", mustChangePassword: true },
+    create: { username: "Admin", loginGroup: "STAFF", email: adminEmail, passwordHash: startPw, firstName: "System", lastName: "Admin", role: "ADMIN" },
   });
-  console.log(`✔ Admin: ${admin.email}`);
+  await db.appSetting.upsert({ where: { id: "default" }, update: {}, create: { id: "default", companyName: process.env.SEED_COMPANY ?? "Azubi-Berichtsheft" } });
+  console.log(`✔ Ausbilder-Portal: Benutzername "Admin" (${admin.email})`);
 
   if ((process.env.SEED_DEMO ?? "true") !== "true") return;
   if (await db.department.count()) { console.log("Demo-Daten existieren bereits – übersprungen."); return; }
@@ -24,18 +26,23 @@ async function main() {
     db.department.create({ data: { name: "Vertrieb", code: "VTR", description: "Kundenberatung und Auftragsabwicklung" } }),
     db.department.create({ data: { name: "Buchhaltung", code: "BUH", description: "Finanzen und Controlling" } }),
   ]);
-  const demoPw = await hash("Demo123!");
-  const ausbilder = await db.user.create({ data: { email: "ausbilder@example.com", passwordHash: demoPw, firstName: "Petra", lastName: "Meier", role: "AUSBILDER", departmentId: it.id } });
-  await db.user.create({ data: { email: "leitung.vertrieb@example.com", passwordHash: demoPw, firstName: "Thomas", lastName: "Schulz", role: "ABTEILUNGSLEITER", departmentId: vertrieb.id } });
+  const ausbilder = await db.user.create({ data: { username: "Admin", loginGroup: "AZUBI", email: "azubi.admin@example.com", passwordHash: startPw, firstName: "Test", lastName: "Azubi", role: "AZUBI", departmentId: it.id, beruf: "Fachinformatiker/in Systemintegration", ausbildungsjahr: 1, ausbildungsbeginn: new Date(new Date().getFullYear(), 7, 1), berichtsheftTyp: null } })
+    .then(async (testAzubi) => {
+      console.log(`✔ Azubi-Portal: Benutzername "Admin" (${testAzubi.email})`);
+      return db.user.create({ data: { username: "petra.meier", loginGroup: "STAFF", email: "ausbilder@example.com", passwordHash: startPw, firstName: "Petra", lastName: "Meier", role: "AUSBILDER", departmentId: it.id } });
+    });
+  await db.user.update({ where: { username_loginGroup: { username: "Admin", loginGroup: "AZUBI" } }, data: { trainerId: ausbilder.id } });
+  await db.user.create({ data: { username: "thomas.schulz", loginGroup: "STAFF", email: "leitung.vertrieb@example.com", passwordHash: startPw, firstName: "Thomas", lastName: "Schulz", role: "ABTEILUNGSLEITER", departmentId: vertrieb.id } });
   const beginn = new Date(new Date().getFullYear() - 1, 7, 1);
-  const azubi1 = await db.user.create({ data: { email: "azubi@example.com", passwordHash: demoPw, firstName: "Lena", lastName: "Krüger", role: "AZUBI", departmentId: it.id, trainerId: ausbilder.id, beruf: "Fachinformatiker/in Anwendungsentwicklung", ausbildungsjahr: 2, berichtsheftTyp: "WEEKLY", ausbildungsbeginn: beginn, ausbildungsende: addDays(beginn, 365 * 3) } });
-  const azubi2 = await db.user.create({ data: { email: "azubi2@example.com", passwordHash: demoPw, firstName: "Jonas", lastName: "Weber", role: "AZUBI", departmentId: vertrieb.id, trainerId: ausbilder.id, beruf: "Kaufmann/-frau für Büromanagement", ausbildungsjahr: 1, ausbildungsbeginn: new Date(new Date().getFullYear(), 7, 1) } });
+  const azubi1 = await db.user.create({ data: { username: "lena.krueger", loginGroup: "AZUBI", email: "azubi@example.com", passwordHash: startPw, firstName: "Lena", lastName: "Krüger", role: "AZUBI", departmentId: it.id, trainerId: ausbilder.id, beruf: "Fachinformatiker/in Anwendungsentwicklung", ausbildungsjahr: 2, ausbildungsbeginn: beginn, ausbildungsende: addDays(beginn, 365 * 3), berichtsheftTyp: "WEEKLY" } });
+  await db.user.create({ data: { username: "jonas.weber", loginGroup: "AZUBI", email: "azubi2@example.com", passwordHash: startPw, firstName: "Jonas", lastName: "Weber", role: "AZUBI", departmentId: vertrieb.id, trainerId: ausbilder.id, beruf: "Kaufmann/-frau für Büromanagement", ausbildungsjahr: 1, ausbildungsbeginn: new Date(new Date().getFullYear(), 7, 1) } });
+  // Azubi mit offener Einladung (Code zum Ausprobieren der Registrierung)
+  await db.user.create({ data: { username: "mia.schmidt", loginGroup: "AZUBI", passwordHash: "", firstName: "Mia", lastName: "Schmidt", role: "AZUBI", departmentId: vertrieb.id, trainerId: ausbilder.id, beruf: "Kaufmann/-frau im Einzelhandel", ausbildungsbeginn: new Date(new Date().getFullYear(), 8, 1), inviteCode: "DEMO2026", invitedById: ausbilder.id } });
 
   await db.rotation.createMany({ data: [
     { azubiId: azubi1.id, departmentId: it.id, startDate: subWeeks(new Date(), 20), endDate: subWeeks(new Date(), 4) },
     { azubiId: azubi1.id, departmentId: buchhaltung.id, startDate: subWeeks(new Date(), 4), endDate: addDays(new Date(), 60), note: "Einsatz Jahresabschluss" },
   ] });
-
   await db.template.createMany({ data: [
     { title: "Daily Standup", content: "Teilnahme am täglichen Standup, Abstimmung der Aufgaben im Team.", category: "BETRIEB", isGlobal: true },
     { title: "Berufsschule", content: "Unterricht in den Fächern: Anwendungsentwicklung, Wirtschaft, Englisch.", category: "BERUFSSCHULE", isGlobal: true },
@@ -68,7 +75,7 @@ async function main() {
   }
   await db.notification.create({ data: { userId: azubi1.id, title: "Willkommen im Berichtsheft", message: "Dein Account ist eingerichtet. Viel Erfolg in der Ausbildung!" } });
   await db.auditLog.create({ data: { actorId: admin.id, action: "SEED", targetType: "System", details: { demo: true } } });
-  console.log(`✔ Demo: ausbilder@example.com / azubi@example.com / azubi2@example.com / leitung.vertrieb@example.com (Passwort: Demo123!) – ${azubi2.email}`);
+  console.log("✔ Demo: petra.meier (Ausbilderin), thomas.schulz (Abteilungsleiter), lena.krueger / jonas.weber (Azubis) – Passwort jeweils Start1234!; Einladungscode DEMO2026 (Mia Schmidt)");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => db.$disconnect());

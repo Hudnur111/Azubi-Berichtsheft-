@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { CalendarDays, CalendarRange, Check } from "lucide-react";
 import { requireAzubi } from "@/lib/auth";
 import { chooseReportType } from "@/actions/reports";
+import { logoutAction } from "@/actions/auth";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const metadata = { title: "Berichtstyp wählen" };
@@ -34,6 +35,7 @@ export default async function StartPage() {
           ))}
           <div className="sm:col-span-2 flex justify-center"><SubmitButton size="lg" pendingText="Speichern …">Auswahl speichern und loslegen</SubmitButton></div>
         </form>
+        <form action={logoutAction} className="mt-6 text-center"><button className="text-sm text-slate-500 hover:underline" title="Abmelden">Abmelden</button></form>
       </div>
     </main>
   );

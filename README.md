@@ -13,6 +13,12 @@ Beide Portale liegen in **einer Codebasis**. Über die Umgebungsvariable `PORTAL
 
 ## Features
 
+**Zugang & Registrierung**
+- Anmeldung mit **Benutzername oder E-Mail**; bei gemeinsamem Deployment Umschalter „Azubi / Ausbildung“ (Benutzernamen sind je Portal eindeutig)
+- **Einladungscode**: Ausbilder/in legt Azubi mit Name, Beruf und Ausbildungsbeginn an → 8-stelliger Code → Azubi registriert sich unter `/registrieren`, wählt Benutzername und Passwort und ist automatisch mit Ausbilder/in und Abteilung verknüpft
+- Alternativ Startpasswort (einmalige Anzeige, Pflichtwechsel beim ersten Login), „Angemeldet bleiben“, Passwort vergessen per E-Mail (wenn Mailversand konfiguriert), Sperre nach 8 Fehlversuchen
+- **Ersteinrichtung** ohne Seed: `/setup` legt den ersten Admin an, solange keiner existiert
+
 **Azubi**
 - Beim ersten Login wählbar: **Wochenbericht** (Mo–Fr in einem Formular) oder **Tagesbericht** (ein Bericht je Werktag); später im Profil änderbar
 - Einträge mit Kategorie (Betrieb, Berufsschule, Seminar, Urlaub, Krank, Feiertag), Tätigkeiten, Stunden
@@ -35,7 +41,9 @@ Beide Portale liegen in **einer Codebasis**. Über die Umgebungsvariable `PORTAL
 - Azubi-Akte: Berichtsübersicht, Rückstände, genehmigte Stunden, Erinnerung senden
 - Benutzerverwaltung: Accounts anlegen, Rollen, Abteilung, Ausbilder-Zuordnung, Passwort-Reset, Deaktivieren
 - Abteilungen, Durchlaufplan (Abteilungseinsätze mit automatischer Zuordnung der Berichte)
-- Textbausteine für alle oder je Abteilung, CSV-Export, revisionssicheres Audit-Log
+- Textbausteine für alle oder je Abteilung, CSV-Export, Volltextsuche, revisionssicheres Audit-Log
+- **Einstellungen**: Firmenname, Logo (erscheint in App, Login und E-Mails), Bundesland für Feiertage, Impressum und Datenschutz, Systemstatus der Konfiguration
+- **Feiertage** werden automatisch in neuen Berichten vorbelegt, im Kalender angezeigt und bei Rückständen nicht mitgezählt
 
 ## Tech-Stack
 
@@ -51,16 +59,18 @@ npm run db:seed               # Admin + Demo-Daten
 npm run dev
 ```
 
-Demo-Zugänge nach dem Seed (Passwort jeweils `Demo123!`, Admin: `Admin123!`):
+Zugänge nach dem Seed (Passwort jeweils `Start1234!`):
 
-| Rolle | E-Mail |
-|---|---|
-| Admin | admin@example.com |
-| Ausbilderin | ausbilder@example.com |
-| Abteilungsleiter | leitung.vertrieb@example.com |
-| Azubi | azubi@example.com, azubi2@example.com |
+| Portal | Benutzername | Rolle |
+|---|---|---|
+| Ausbildung | `Admin` | Administrator |
+| Azubi | `Admin` | Test-Azubi (Onboarding noch offen) |
+| Ausbildung | `petra.meier` | Ausbilderin |
+| Ausbildung | `thomas.schulz` | Abteilungsleiter |
+| Azubi | `lena.krueger`, `jonas.weber` | Azubis mit Demo-Berichten |
+| Azubi | Einladungscode `DEMO2026` | Registrierung ausprobieren (Mia Schmidt) |
 
-Demo-Daten lassen sich mit `SEED_DEMO=false` abschalten.
+Demo-Daten lassen sich mit `SEED_DEMO=false` abschalten; dann wird nur der Admin-Zugang angelegt. Ohne Seed: nach dem Deploy `/setup` öffnen.
 
 ## Deployment auf Vercel
 
@@ -76,7 +86,9 @@ Demo-Daten lassen sich mit `SEED_DEMO=false` abschalten.
 3. **Umgebungsvariablen** je Projekt setzen: `DATABASE_URL`, `AUTH_SECRET` (min. 32 Zeichen, in beiden Projekten identisch), `PORTAL_MODE`, `CRON_SECRET` (Vercel schickt ihn automatisch als Bearer-Token an den Cron-Endpunkt).
    Der tägliche Erinnerungs-Cron (`/api/cron/daily`, 05:00 UTC, siehe `vercel.json`) muss nur in **einem** der beiden Projekte aktiv sein – im anderen den `crons`-Block entfernen oder ignorieren (doppelte Mitteilungen sonst).
 4. Build-Command ist in `vercel.json` hinterlegt (`npm run vercel-build`): führt `prisma generate`, `prisma migrate deploy` und `next build` aus – Migrationen laufen also automatisch bei jedem Deploy.
-5. Einmalig den Admin-Account anlegen: lokal mit der Produktions-`DATABASE_URL` `SEED_DEMO=false npm run db:seed` ausführen (oder über Vercel CLI `vercel env pull` + Seed).
+5. Ersten Admin anlegen: Deployment öffnen → `/setup` (nur solange kein Admin existiert). Alternativ `SEED_DEMO=false npm run db:seed` mit der Produktions-`DATABASE_URL`.
+6. Optional: `RESEND_API_KEY`, `MAIL_FROM`, `APP_URL` für E-Mail-Benachrichtigungen und „Passwort vergessen“; `TZ=Europe/Berlin` (wird sonst serverseitig gesetzt).
+7. Im Admin-Portal unter **Einstellungen** Firmenname, Logo, Bundesland, Impressum und Datenschutz pflegen.
 
 Health-Check: `GET /api/health`. Cron manuell testen: `curl -H "Authorization: Bearer $CRON_SECRET" https://<domain>/api/cron/daily`.
 

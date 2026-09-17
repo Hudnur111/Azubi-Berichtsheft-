@@ -18,12 +18,13 @@ import { fullName } from "@/lib/utils";
 const STATUSES = Object.keys(STATUS_LABELS) as ReportStatus[];
 const PAGE = 50;
 
-export default async function AlleBerichte({ searchParams }: { searchParams: Promise<{ status?: string; azubi?: string; dept?: string; page?: string }> }) {
+export default async function AlleBerichte({ searchParams }: { searchParams: Promise<{ status?: string; azubi?: string; dept?: string; page?: string; q?: string }> }) {
   const me = await requireStaff();
   const sp = await searchParams;
   const status = STATUSES.includes(sp.status as ReportStatus) ? (sp.status as ReportStatus) : undefined;
   const page = Math.max(1, Number(sp.page) || 1);
-  const where = { ...reportScope(me), ...(status ? { status } : {}), ...(sp.azubi ? { azubiId: sp.azubi } : {}), ...(sp.dept ? { departmentId: sp.dept } : {}) };
+  const q = sp.q?.trim();
+  const where = { ...reportScope(me), ...(status ? { status } : {}), ...(sp.azubi ? { azubiId: sp.azubi } : {}), ...(sp.dept ? { departmentId: sp.dept } : {}), ...(q ? { OR: [{ entries: { some: { description: { contains: q, mode: "insensitive" as const } } } }, { summary: { contains: q, mode: "insensitive" as const } }] } : {}) };
   const [reports, total, azubis, departments] = await Promise.all([
     db.report.findMany({ where, orderBy: [{ year: "desc" }, { week: "desc" }], skip: (page - 1) * PAGE, take: PAGE, include: { azubi: { select: { firstName: true, lastName: true } }, department: { select: { name: true } }, reviewer: { select: { firstName: true, lastName: true } } } }),
     db.report.count({ where }),
@@ -32,13 +33,13 @@ export default async function AlleBerichte({ searchParams }: { searchParams: Pro
   ]);
   const href = (patch: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
-    const merged = { status: sp.status, azubi: sp.azubi, dept: sp.dept, ...patch };
+    const merged = { status: sp.status, azubi: sp.azubi, dept: sp.dept, q: sp.q, ...patch };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, v);
     const s = q.toString();
     return `/admin/berichte${s ? `?${s}` : ""}`;
   };
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const keep = { status: sp.status, azubi: sp.azubi, dept: sp.dept };
+  const keep = { status: sp.status, azubi: sp.azubi, dept: sp.dept, q: sp.q };
 
   return (
     <>
@@ -48,6 +49,7 @@ export default async function AlleBerichte({ searchParams }: { searchParams: Pro
           title="Filter"
           action={
             <div className="flex flex-wrap gap-2">
+              <form method="get" className="flex gap-1">{Object.entries(keep).filter(([k, v]) => v && k !== "q").map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}<input name="q" defaultValue={q} placeholder="Volltext suchen …" className="input w-44 py-1.5 text-xs" /></form>
               <SelectNav value={sp.status ?? ""} placeholder="Alle Status" options={STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))} param="status" basePath="/admin/berichte" keep={keep} />
               <SelectNav value={sp.azubi ?? ""} placeholder="Alle Azubis" options={azubis.map((a) => ({ value: a.id, label: fullName(a) }))} param="azubi" basePath="/admin/berichte" keep={keep} />
               <SelectNav value={sp.dept ?? ""} placeholder="Alle Abteilungen" options={departments.map((d) => ({ value: d.id, label: d.name }))} param="dept" basePath="/admin/berichte" keep={keep} />

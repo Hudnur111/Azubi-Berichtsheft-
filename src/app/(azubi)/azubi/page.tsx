@@ -10,6 +10,8 @@ import { ButtonLink } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { currentWeek, dayKey, expectedWeeks, expectedWorkdays, fmtDate, reportTitle, weekLabel } from "@/lib/dates";
 import { openOrCreateReport } from "@/actions/reports";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export default async function AzubiDashboard() {
@@ -25,13 +27,14 @@ export default async function AzubiDashboard() {
   }
   const cw = currentWeek();
   const today = new Date();
+  const holidays = holidayMap([today.getFullYear() - 1, today.getFullYear()], (await getSettings()).bundesland);
   const todayIso = getISODay(today);
   const have = new Set(reports.map((r) => dayKey(r.year, r.week, r.day)));
   const ok = new Set(reports.filter((r) => r.status !== "DRAFT" && r.status !== "REJECTED").map((r) => dayKey(r.year, r.week, r.day)));
 
   // Fehlende Einheiten (Wochen oder Werktage), aktuelle Einheit ausgenommen
   const expected = daily
-    ? expectedWorkdays(me.ausbildungsbeginn).map((d) => ({ key: dayKey(d.year, d.week, d.day), label: `${fmtDate(d.date, "EEEEEE dd.MM.")}`, current: d.year === cw.year && d.week === cw.week && d.day === todayIso, year: d.year, week: d.week, day: d.day }))
+    ? expectedWorkdays(me.ausbildungsbeginn, today, holidays).map((d) => ({ key: dayKey(d.year, d.week, d.day), label: `${fmtDate(d.date, "EEEEEE dd.MM.")}`, current: d.year === cw.year && d.week === cw.week && d.day === todayIso, year: d.year, week: d.week, day: d.day }))
     : expectedWeeks(me.ausbildungsbeginn).map((w) => ({ key: dayKey(w.year, w.week, 0), label: weekLabel(w.year, w.week), current: w.year === cw.year && w.week === cw.week, year: w.year, week: w.week, day: 0 }));
   const missing = expected.filter((e) => !have.has(e.key) && !e.current);
   const currentKey = daily ? dayKey(cw.year, cw.week, todayIso) : dayKey(cw.year, cw.week, 0);

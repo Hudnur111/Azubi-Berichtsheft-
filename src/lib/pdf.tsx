@@ -11,7 +11,7 @@ export type PdfReport = Report & {
   reviewer: Pick<User, "firstName" | "lastName"> | null;
   department: Pick<Department, "name"> | null;
 };
-export type PdfAzubi = Pick<User, "firstName" | "lastName" | "beruf" | "email" | "ausbildungsbeginn" | "ausbildungsende"> & {
+export type PdfAzubi = Pick<User, "firstName" | "lastName" | "beruf" | "email" | "username" | "ausbildungsbeginn" | "ausbildungsende"> & {
   trainer: Pick<User, "firstName" | "lastName"> | null;
   department: Pick<Department, "name"> | null;
 };
@@ -38,7 +38,7 @@ const s = StyleSheet.create({
   tocRow: { flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0", paddingVertical: 3, fontSize: 9 },
 });
 
-function ReportPage({ r, azubi }: { r: PdfReport; azubi: PdfAzubi }) {
+function ReportPage({ r, azubi, nr }: { r: PdfReport; azubi: PdfAzubi; nr?: number }) {
   const total = r.entries.reduce((a, e) => a + Number(e.hours), 0);
   const meta: [string, string][] = [
     ["Auszubildende/r", fullName(azubi)], ["Ausbildungsberuf", azubi.beruf ?? "–"], ["Ausbildungsjahr", r.ausbildungsjahr ? String(r.ausbildungsjahr) : "–"], ["Abteilung", r.department?.name ?? "–"],
@@ -48,7 +48,7 @@ function ReportPage({ r, azubi }: { r: PdfReport; azubi: PdfAzubi }) {
   return (
     <Page size="A4" style={s.page} wrap>
       <View style={s.head}>
-        <Text style={s.h1}>Ausbildungsnachweis · {reportTitle(r)}</Text>
+        <Text style={s.h1}>Ausbildungsnachweis{nr ? ` Nr. ${nr}` : ""} · {reportTitle(r)}</Text>
         <Text style={s.sub}>{r.type === "DAILY" ? "Täglicher" : "Wöchentlicher"} Nachweis gemäß § 13 Nr. 7 BBiG</Text>
       </View>
       <View style={s.meta}>
@@ -96,14 +96,14 @@ function Cover({ azubi, reports }: { azubi: PdfAzubi; reports: PdfReport[] }) {
       <Text style={{ fontSize: 24, fontFamily: "Helvetica-Bold" }}>Berichtsheft</Text>
       <Text style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>Ausbildungsnachweise gemäß § 13 Nr. 7 BBiG</Text>
       <View style={{ marginTop: 30 }}>
-        {([["Auszubildende/r", fullName(azubi)], ["E-Mail", azubi.email], ["Ausbildungsberuf", azubi.beruf ?? "–"], ["Ausbildungszeitraum", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Stammabteilung", azubi.department?.name ?? "–"], ["Ausbilder/in", azubi.trainer ? fullName(azubi.trainer) : "–"], ["Berichte", `${reports.length} (davon ${approved} genehmigt)`], ["Dokumentierte Stunden", hours.toLocaleString("de-DE")], ["Erstellt am", fmtDate(new Date(), "dd.MM.yyyy HH:mm")]] as [string, string][]).map(([k, v]) => (
+        {([["Auszubildende/r", fullName(azubi)], ["Benutzername", azubi.username], ["E-Mail", azubi.email ?? "–"], ["Ausbildungsberuf", azubi.beruf ?? "–"], ["Ausbildungszeitraum", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Stammabteilung", azubi.department?.name ?? "–"], ["Ausbilder/in", azubi.trainer ? fullName(azubi.trainer) : "–"], ["Berichte", `${reports.length} (davon ${approved} genehmigt)`], ["Dokumentierte Stunden", hours.toLocaleString("de-DE")], ["Erstellt am", fmtDate(new Date(), "dd.MM.yyyy HH:mm")]] as [string, string][]).map(([k, v]) => (
           <View key={k} style={{ flexDirection: "row", marginBottom: 6 }}><Text style={{ width: 150, color: "#64748b" }}>{k}</Text><Text style={s.bold}>{v}</Text></View>
         ))}
       </View>
       <View style={s.toc}>
         <Text style={[s.bold, { marginBottom: 6, fontSize: 11 }]}>Inhalt</Text>
-        {reports.map((r) => (
-          <View key={r.id} style={s.tocRow}><Text>{reportTitle(r)} · {r.department?.name ?? "–"}</Text><Text>{STATUS_LABELS[r.status]}</Text></View>
+        {reports.map((r, i) => (
+          <View key={r.id} style={s.tocRow}><Text>Nr. {i + 1} · {reportTitle(r)} · {r.department?.name ?? "–"}</Text><Text>{STATUS_LABELS[r.status]}</Text></View>
         ))}
       </View>
     </Page>
@@ -114,7 +114,7 @@ export async function renderReportsPdf(azubi: PdfAzubi, reports: PdfReport[], wi
   const doc = (
     <Document title={`Berichtsheft ${fullName(azubi)}`} author={fullName(azubi)} language="de">
       {withCover ? <Cover azubi={azubi} reports={reports} /> : null}
-      {reports.map((r) => <ReportPage key={r.id} r={r} azubi={azubi} />)}
+      {reports.map((r, i) => <ReportPage key={r.id} r={r} azubi={azubi} nr={withCover ? i + 1 : undefined} />)}
     </Document>
   );
   return renderToBuffer(doc);

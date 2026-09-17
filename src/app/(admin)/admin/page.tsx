@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, ClipboardCheck, GraduationCap, Hourglass, 
 import { subDays } from "date-fns";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { azubiScope, reportScope } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Stat } from "@/components/ui/stat";
@@ -27,8 +29,9 @@ export default async function AdminDashboard() {
   ]);
   const depts = await db.department.findMany({ where: { id: { in: byDept.map((d) => d.departmentId).filter(Boolean) as string[] } }, select: { id: true, name: true } });
   const cw = currentWeek();
+  const holidays = holidayMap([cw.year - 1, cw.year], (await getSettings()).bundesland);
   const overdue = azubis
-    .map((a) => ({ ...a, missing: missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports).length }))
+    .map((a) => ({ ...a, missing: missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports, new Date(), holidays).length }))
     .filter((a) => a.missing > 0)
     .sort((a, b) => b.missing - a.missing);
   const oldest = recent[0]?.submittedAt;

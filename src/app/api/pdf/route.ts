@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   if (!reports.length) return new NextResponse("Keine Berichte gefunden", { status: 404 });
   const azubi = await db.user.findUniqueOrThrow({
     where: { id: reports[0].azubiId },
-    select: { firstName: true, lastName: true, beruf: true, email: true, ausbildungsbeginn: true, ausbildungsende: true, trainer: { select: { firstName: true, lastName: true } }, department: { select: { name: true } } },
+    select: { firstName: true, lastName: true, beruf: true, email: true, username: true, ausbildungsbeginn: true, ausbildungsende: true, trainer: { select: { firstName: true, lastName: true } }, department: { select: { name: true } } },
   });
   const pdf = await renderReportsPdf(azubi, reports, !single);
   await audit(me.id, "EXPORT_PDF", "Report", single ? reports[0].id : null, { azubiId: reports[0].azubiId, count: reports.length });

@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, BellRing, ChevronRight, FileDown, MessageCircle, Pencil } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { azubiScope } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { remindAzubi } from "@/actions/admin";
 import { fmtDate, missingUnits, reportTitle, weekLabel } from "@/lib/dates";
+import { CATEGORY_LABELS } from "@/lib/labels";
 import { fullName } from "@/lib/utils";
 
 export default async function AzubiAkte({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -29,11 +32,13 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
     },
   });
   if (!azubi) notFound();
-  const missing = missingUnits(azubi.berichtsheftTyp, azubi.ausbildungsbeginn, azubi.reports).reverse();
+  const holidays = holidayMap([new Date().getFullYear() - 1, new Date().getFullYear()], (await getSettings()).bundesland);
+  const missing = missingUnits(azubi.berichtsheftTyp, azubi.ausbildungsbeginn, azubi.reports, new Date(), holidays).reverse();
   const daily = azubi.berichtsheftTyp === "DAILY";
   const counts = { APPROVED: 0, SUBMITTED: 0, REJECTED: 0, DRAFT: 0 };
   for (const r of azubi.reports) counts[r.status]++;
   const hours = await db.reportEntry.aggregate({ where: { report: { azubiId: id, status: "APPROVED" } }, _sum: { hours: true } });
+  const byCat = await db.reportEntry.groupBy({ by: ["category"], where: { report: { azubiId: id, status: { in: ["APPROVED", "SUBMITTED"] } } }, _sum: { hours: true }, _count: { _all: true } });
 
   return (
     <>
@@ -43,7 +48,7 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
         actions={
           <>
             <ButtonLink href="/admin/azubis" variant="ghost"><ArrowLeft className="h-4 w-4" /> Zurück</ButtonLink>
-            {me.role === "ADMIN" && <ButtonLink href={`/admin/benutzer/${azubi.id}`} variant="outline"><Pencil className="h-4 w-4" /> Stammdaten</ButtonLink>}
+            {(me.role === "ADMIN" || me.role === "AUSBILDER") && <ButtonLink href={`/admin/benutzer/${azubi.id}`} variant="outline"><Pencil className="h-4 w-4" /> Stammdaten</ButtonLink>}
             <ButtonLink href={`/admin/chat?mit=${azubi.id}`} variant="outline"><MessageCircle className="h-4 w-4" /> Chat</ButtonLink>
             {azubi.reports.length > 0 && <ButtonLink href={`/api/pdf?azubi=${azubi.id}`} variant="outline"><FileDown className="h-4 w-4" /> Berichtsheft (PDF)</ButtonLink>}
             {missing.length > 0 && (
@@ -82,11 +87,21 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
           <Card>
             <CardHeader title="Stammdaten" />
             <dl className="divide-y divide-slate-100 text-sm">
-              {([["E-Mail", azubi.email], ["Berichtstyp", daily ? "Tagesberichte" : azubi.berichtsheftTyp ? "Wochenberichte" : "noch nicht gewählt"], ["Ausbildung", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Ausbildungsjahr", azubi.ausbildungsjahr ?? "–"], ["Letzter Login", fmtDate(azubi.lastLoginAt, "dd.MM.yyyy HH:mm")]] as [string, React.ReactNode][]).map(([k, v]) => (
+              {([["Benutzername", azubi.username], ["E-Mail", azubi.email ?? "–"], ["Zugang", azubi.passwordHash ? "aktiv" : `Einladung offen – Code ${azubi.inviteCode ?? "–"}`], ["Berichtstyp", daily ? "Tagesberichte" : azubi.berichtsheftTyp ? "Wochenberichte" : "noch nicht gewählt"], ["Ausbildung", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Ausbildungsjahr", azubi.ausbildungsjahr ?? "–"], ["Letzter Login", fmtDate(azubi.lastLoginAt, "dd.MM.yyyy HH:mm")]] as [string, React.ReactNode][]).map(([k, v]) => (
                 <div key={k} className="grid grid-cols-[120px_1fr] px-5 py-2"><dt className="text-slate-500">{k}</dt><dd className="font-medium break-all">{v}</dd></div>
               ))}
             </dl>
           </Card>
+          {byCat.length > 0 && (
+            <Card>
+              <CardHeader title="Stunden nach Art" description="Eingereichte und genehmigte Berichte" />
+              <ul className="divide-y divide-slate-100 text-sm">
+                {byCat.sort((a, b) => Number(b._sum.hours ?? 0) - Number(a._sum.hours ?? 0)).map((c) => (
+                  <li key={c.category} className="flex items-center justify-between px-5 py-2"><span>{CATEGORY_LABELS[c.category]} <span className="text-xs text-slate-400">· {c._count._all} Tage</span></span><span className="font-medium tabular-nums">{Number(c._sum.hours ?? 0).toLocaleString("de-DE")} h</span></li>
+                ))}
+              </ul>
+            </Card>
+          )}
           <Card>
             <CardHeader title="Durchlaufplan" action={<Link href={`/admin/durchlaufplan?azubi=${azubi.id}`} className="text-sm text-brand-600 hover:underline">Bearbeiten</Link>} />
             {azubi.rotations.length ? (

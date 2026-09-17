@@ -77,8 +77,9 @@ export function MonthCalendar({ month, items, events = [], base, keep = {}, href
               const wd = getISODay(d);
               const workday = wd <= 5;
               const weeklyCover = workday && weekStatus && mode !== "DAILY";
-              const dayMissing = mode === "DAILY" && workday && !dayItems.length && expectedFrom && d >= expectedFrom && d < today;
               const evs = events.filter((e) => isSameDay(e.date, d));
+              const isHoliday = evs.some((e) => e.tone === "warning");
+              const dayMissing = mode === "DAILY" && workday && !dayItems.length && !isHoliday && expectedFrom && d >= expectedFrom && d < today;
               return (
                 <div key={dk} className={cn("min-h-[76px] border-r border-slate-100 p-1.5 last:border-r-0", !inMonth && "bg-slate-50/50 text-slate-300", isWeekend(d) && inMonth && "bg-slate-50/40")}>
                   <div className="flex items-center justify-between">
@@ -105,6 +106,7 @@ export function MonthCalendar({ month, items, events = [], base, keep = {}, href
         {(Object.keys(STATUS_LABELS) as ReportStatus[]).map((s) => <span key={s} className="flex items-center gap-1"><span className={cn("h-2 w-2 rounded-full", statusDot[s])} />{STATUS_LABELS[s]}</span>)}
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-400" />Kein Bericht</span>
         <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-indigo-400" />Abteilungseinsatz</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-300" />Feiertag</span>
       </div>
     </Card>
   );

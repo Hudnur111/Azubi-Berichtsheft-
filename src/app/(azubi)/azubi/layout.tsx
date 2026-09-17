@@ -13,13 +13,13 @@ export default async function AzubiLayout({ children }: { children: React.ReactN
     unreadMessages(user.id),
   ]);
   const nav: NavItem[] = [
-    { href: "/azubi", label: "Übersicht", icon: "LayoutDashboard", exact: true },
-    { href: "/azubi/berichte", label: "Meine Berichte", icon: "BookText", badge: rejected || undefined },
-    { href: "/azubi/kalender", label: "Kalender", icon: "CalendarDays" },
-    { href: "/azubi/chat", label: "Chat", icon: "MessageCircle", badge: chat || undefined },
+    { href: "/azubi", label: "Übersicht", icon: "LayoutDashboard", exact: true, mobile: true },
+    { href: "/azubi/berichte", label: "Berichte", icon: "BookText", badge: rejected || undefined, mobile: true },
+    { href: "/azubi/kalender", label: "Kalender", icon: "CalendarDays", mobile: true },
+    { href: "/azubi/chat", label: "Chat", icon: "MessageCircle", badge: chat || undefined, mobile: true },
     { href: "/azubi/vorlagen", label: "Textbausteine", icon: "Sparkles" },
     { href: "/azubi/benachrichtigungen", label: "Mitteilungen", icon: "Bell", badge: unread || undefined },
-    { href: "/azubi/profil", label: "Profil", icon: "UserCircle" },
+    { href: "/azubi/profil", label: "Profil", icon: "UserCircle", mobile: true },
   ];
   return <AppShell user={user} nav={nav} portal="Azubi-Portal" unread={unread}>{children}</AppShell>;
 }

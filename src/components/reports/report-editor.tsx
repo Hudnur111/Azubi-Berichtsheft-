@@ -79,6 +79,11 @@ export function ReportEditor({ reportId, initialSummary, initialEntries, templat
     else { const cur = entries.find((e) => e.id === id); if (cur && cur.hours === 0) patch.hours = 8; }
     update(id, patch);
   };
+  const markAll = (category: EntryCategory) => {
+    if (!window.confirm(`Alle Tage als „${CATEGORY_LABELS[category]}“ markieren?`)) return;
+    setEntries((prev) => prev.map((e) => ({ ...e, category, hours: NON_WORK.includes(category) ? 0 : e.hours || 8 })));
+    setDirty(true);
+  };
   const copyPrevious = (idx: number) => {
     if (idx === 0) return;
     const prev = entries[idx - 1];
@@ -97,9 +102,15 @@ export function ReportEditor({ reportId, initialSummary, initialEntries, templat
   return (
     <div className="space-y-4">
       <div className="sticky top-14 z-10 -mx-4 flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur lg:-mx-8 lg:px-8">
-        <p className="text-xs text-slate-500">
-          <span className="font-medium text-slate-700">{total.toLocaleString("de-DE")} h</span> · {words} Wörter
-        </p>
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <p><span className="font-medium text-slate-700">{total.toLocaleString("de-DE")} h</span> · {words} Wörter</p>
+          {entries.length > 1 && (
+            <select aria-label="Alle Tage markieren als" value="" onChange={(ev) => { if (ev.target.value) markAll(ev.target.value as EntryCategory); }} className="input w-auto py-1 text-xs">
+              <option value="">Alle Tage als …</option>
+              {(["URLAUB", "KRANK", "BERUFSSCHULE", "SEMINAR", "BETRIEB"] as EntryCategory[]).map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+            </select>
+          )}
+        </div>
         <div className="flex items-center gap-2 text-xs">
           {status === "saving" && <span className="flex items-center gap-1 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Speichert …</span>}
           {status === "saved" && !dirty && <span className="flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> {savedMsg}</span>}

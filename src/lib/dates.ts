@@ -53,12 +53,12 @@ export function ausbildungsjahrAt(begin: Date | null | undefined, at: Date = new
 }
 
 /** Alle Werktage (Mo–Fr) zwischen Ausbildungsbeginn (oder default) und heute – für Tagesberichte. */
-export function expectedWorkdays(from: Date | null | undefined, to: Date = new Date()) {
+export function expectedWorkdays(from: Date | null | undefined, to: Date = new Date(), holidays?: Map<string, string>) {
   const start = startOfDay(from ?? addDays(to, -7 * 8));
   const end = startOfDay(to);
   if (isAfter(start, end)) return [];
   return eachDayOfInterval({ start, end })
-    .filter((d) => !isWeekend(d))
+    .filter((d) => !isWeekend(d) && !holidays?.has(format(d, "yyyy-MM-dd")))
     .map((d) => ({ ...isoWeekOf(d), day: getISODay(d), date: d }));
 }
 
@@ -73,12 +73,12 @@ export function reportTitle(r: { type: "WEEKLY" | "DAILY"; year: number; week: n
 export const toDateInput = (d: Date) => format(d, "yyyy-MM-dd");
 
 /** Fehlende Berichtseinheiten (Wochen bzw. Werktage) eines Azubis, aktuelle Einheit ausgenommen. */
-export function missingUnits(type: "WEEKLY" | "DAILY" | null | undefined, begin: Date | null | undefined, reports: { year: number; week: number; day: number }[], now: Date = new Date()) {
+export function missingUnits(type: "WEEKLY" | "DAILY" | null | undefined, begin: Date | null | undefined, reports: { year: number; week: number; day: number }[], now: Date = new Date(), holidays?: Map<string, string>) {
   const have = new Set(reports.map((r) => dayKey(r.year, r.week, r.day)));
   const cw = isoWeekOf(now);
   if (type === "DAILY") {
     const today = getISODay(now);
-    return expectedWorkdays(begin, now)
+    return expectedWorkdays(begin, now, holidays)
       .filter((d) => !have.has(dayKey(d.year, d.week, d.day)) && !(d.year === cw.year && d.week === cw.week && d.day === today))
       .map((d) => ({ key: dayKey(d.year, d.week, d.day), label: format(d.date, "EEEEEE dd.MM.", { locale: de }) }));
   }

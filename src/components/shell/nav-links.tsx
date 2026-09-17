@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Sparkles, UserCircle, Users } from "lucide-react";
+import { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Settings, Sparkles, UserCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const NAV_ICONS = { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Sparkles, UserCircle, Users };
+export const NAV_ICONS = { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Settings, Sparkles, UserCircle, Users };
 export type NavIcon = keyof typeof NAV_ICONS;
-export type NavItem = { href: string; label: string; icon: NavIcon; badge?: number; exact?: boolean };
+export type NavItem = { href: string; label: string; icon: NavIcon; badge?: number; exact?: boolean; mobile?: boolean };
 
 export function NavLinks({ items, mobile }: { items: NavItem[]; mobile?: boolean }) {
   const pathname = usePathname();

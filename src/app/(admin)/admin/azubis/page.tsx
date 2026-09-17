@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { azubiScope } from "@/lib/permissions";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -22,15 +24,16 @@ export default async function AzubisPage({ searchParams }: { searchParams: Promi
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: { department: { select: { name: true } }, trainer: { select: { firstName: true, lastName: true } }, reports: { select: { year: true, week: true, day: true, status: true } } },
   });
+  const holidays = holidayMap([new Date().getFullYear() - 1, new Date().getFullYear()], (await getSettings()).bundesland);
   const rows = azubis.map((a) => {
-    const missing = missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports).length;
+    const missing = missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports, new Date(), holidays).length;
     const pending = a.reports.filter((r) => r.status === "SUBMITTED").length;
     const approved = a.reports.filter((r) => r.status === "APPROVED").length;
     return { ...a, missing, pending, approved };
   });
   return (
     <>
-      <PageHeader title="Auszubildende" description={`${rows.length} Azubi(s) in deinem Zuständigkeitsbereich`} actions={me.role === "ADMIN" && <ButtonLink href="/admin/benutzer/neu?role=AZUBI">Azubi anlegen</ButtonLink>} />
+      <PageHeader title="Auszubildende" description={`${rows.length} Azubi(s) in deinem Zuständigkeitsbereich`} actions={(me.role === "ADMIN" || me.role === "AUSBILDER") && <ButtonLink href="/admin/benutzer/neu?role=AZUBI">Azubi anlegen</ButtonLink>} />
       <QueryToast ok={sp.ok} error={sp.error} />
       <Card>
         <CardHeader title="Übersicht" action={<form method="get"><input name="q" defaultValue={q} placeholder="Suchen …" className="input w-56 py-1.5 text-xs" /></form>} />
@@ -40,7 +43,7 @@ export default async function AzubisPage({ searchParams }: { searchParams: Promi
             <tbody>
               {rows.map((a) => (
                 <tr key={a.id} className="hover:bg-slate-50">
-                  <Td><p className="font-medium text-slate-900">{fullName(a)}{!a.active && <Badge tone="danger" className="ml-2">inaktiv</Badge>}</p><p className="text-xs text-slate-500">{a.email}</p></Td>
+                  <Td><p className="font-medium text-slate-900">{fullName(a)}{!a.active && <Badge tone="danger" className="ml-2">inaktiv</Badge>}{!a.passwordHash && <Badge tone="warning" className="ml-2">Einladung offen</Badge>}</p><p className="text-xs text-slate-500">{a.username}{a.email ? ` · ${a.email}` : ""}</p></Td>
                   <Td>{a.beruf ?? "–"}<br /><span className="text-xs text-slate-500">seit {fmtDate(a.ausbildungsbeginn)} · {a.berichtsheftTyp === "DAILY" ? "Tagesberichte" : a.berichtsheftTyp === "WEEKLY" ? "Wochenberichte" : "Typ offen"}</span></Td>
                   <Td>{a.department?.name ?? "–"}</Td>
                   <Td>{a.trainer ? fullName(a.trainer) : "–"}</Td>

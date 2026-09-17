@@ -22,7 +22,7 @@ export default async function BenutzerPage({ searchParams }: { searchParams: Pro
   const role = sp.role && sp.role in ROLE_LABELS ? (sp.role as Role) : undefined;
   const q = sp.q?.trim();
   const users = await db.user.findMany({
-    where: { ...(role ? { role } : {}), ...(q ? { OR: [{ firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}) },
+    where: { ...(role ? { role } : {}), ...(q ? { OR: [{ firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { username: { contains: q, mode: "insensitive" } }] } : {}) },
     orderBy: [{ role: "asc" }, { lastName: "asc" }],
     include: { department: { select: { name: true } }, _count: { select: { azubis: true } } },
   });
@@ -37,10 +37,10 @@ export default async function BenutzerPage({ searchParams }: { searchParams: Pro
           <tbody>
             {users.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50">
-                <Td><p className="font-medium text-slate-900">{fullName(u)}</p><p className="text-xs text-slate-500">{u.email}</p></Td>
+                <Td><p className="font-medium text-slate-900">{fullName(u)}</p><p className="text-xs text-slate-500">{u.username}{u.email ? ` · ${u.email}` : ""}</p></Td>
                 <Td><Badge tone={roleTone[u.role]}>{ROLE_LABELS[u.role]}</Badge>{u._count.azubis > 0 && <span className="ml-2 text-xs text-slate-400">{u._count.azubis} Azubi(s)</span>}</Td>
                 <Td>{u.department?.name ?? "–"}</Td>
-                <Td>{u.active ? <Badge tone="success">aktiv</Badge> : <Badge tone="danger">inaktiv</Badge>}{u.mustChangePassword && <Badge tone="warning" className="ml-1">PW ändern</Badge>}</Td>
+                <Td>{u.active ? <Badge tone="success">aktiv</Badge> : <Badge tone="danger">inaktiv</Badge>}{!u.passwordHash ? <Badge tone="warning" className="ml-1">Einladung offen</Badge> : u.mustChangePassword && <Badge tone="warning" className="ml-1">PW ändern</Badge>}</Td>
                 <Td className="text-xs text-slate-500">{fmtDate(u.lastLoginAt, "dd.MM.yyyy HH:mm")}</Td>
                 <Td className="text-right"><Link href={`/admin/benutzer/${u.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">Bearbeiten <ChevronRight className="h-4 w-4" /></Link></Td>
               </tr>

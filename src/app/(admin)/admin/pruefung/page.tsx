@@ -11,6 +11,7 @@ import { Empty } from "@/components/ui/empty";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { SelectNav } from "@/components/ui/select-nav";
+import { SelectAll } from "@/components/ui/select-all";
 import { bulkApprove } from "@/actions/reports";
 import { fmtDate, fmtDateTime, reportTitle, weekLabel } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
@@ -43,7 +44,7 @@ export default async function PruefungPage({ searchParams }: { searchParams: Pro
           />
           {reports.length ? (
             <Table>
-              <thead><tr><Th className="w-8"></Th><Th>Azubi</Th><Th>Bericht</Th><Th>Abteilung</Th><Th>Eingereicht</Th><Th></Th></tr></thead>
+              <thead><tr><Th className="w-8"><SelectAll name="ids" /></Th><Th>Azubi</Th><Th>Bericht</Th><Th>Abteilung</Th><Th>Eingereicht</Th><Th></Th></tr></thead>
               <tbody>
                 {reports.map((r) => {
                   const days = Math.floor((Date.now() - new Date(r.submittedAt ?? r.updatedAt).getTime()) / 86400000);

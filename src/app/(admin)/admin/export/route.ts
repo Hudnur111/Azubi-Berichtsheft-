@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   for (const r of reports) {
     for (const e of r.entries) {
       lines.push([
-        `${r.azubi.firstName} ${r.azubi.lastName}`, r.azubi.email, r.year, r.week, fmtDate(e.date), fmtDate(e.date, "EEEE"), CATEGORY_LABELS[e.category], e.description, Number(e.hours).toLocaleString("de-DE"),
+        `${r.azubi.firstName} ${r.azubi.lastName}`, r.azubi.email ?? "", r.year, r.week, fmtDate(e.date), fmtDate(e.date, "EEEE"), CATEGORY_LABELS[e.category], e.description, Number(e.hours).toLocaleString("de-DE"),
         r.department?.name ?? "", STATUS_LABELS[r.status], r.submittedAt ? fmtDate(r.submittedAt, "dd.MM.yyyy HH:mm") : "", r.reviewer ? `${r.reviewer.firstName} ${r.reviewer.lastName}` : "", r.reviewedAt ? fmtDate(r.reviewedAt, "dd.MM.yyyy HH:mm") : "",
       ].map(csvCell).join(";"));
     }

@@ -3,6 +3,7 @@ import type { Role } from "@prisma/client";
 
 export const SESSION_COOKIE = "bh_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12h
+export const SESSION_TTL_REMEMBER_SECONDS = 60 * 60 * 24 * 30; // 30 Tage („Angemeldet bleiben“)
 
 export type SessionPayload = {
   sub: string;
@@ -19,11 +20,11 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export async function signSession(payload: SessionPayload) {
+export async function signSession(payload: SessionPayload, ttl = SESSION_TTL_SECONDS) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
+    .setExpirationTime(`${ttl}s`)
     .sign(secret());
 }
 

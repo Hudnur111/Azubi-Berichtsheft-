@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getISODay, subDays } from "date-fns";
 import { db } from "@/lib/db";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { notifyMany } from "@/lib/audit";
 import { currentWeek, fmtDate, isoWeekOf, missingUnits, weekLabel } from "@/lib/dates";
 
@@ -22,6 +24,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const dow = getISODay(now);
   const cw = currentWeek();
+  const holidays = holidayMap([now.getFullYear() - 1, now.getFullYear()], (await getSettings()).bundesland);
   const stats = { newWeek: 0, fridayReminder: 0, dailyReminder: 0, staffPending: 0 };
 
   const azubis = await db.user.findMany({
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (dow === 1) {
     await notifyMany(azubis.map((a) => a.id), `Neue Woche: ${weekLabel(cw.year, cw.week)}`, "Eine neue Berichtswoche hat begonnen. Leg deinen Bericht an und trag deine Tätigkeiten laufend ein.", "/azubi");
     stats.newWeek = azubis.length;
-    const backlog = azubis.filter((a) => missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports, now).length > 0).length;
+    const backlog = azubis.filter((a) => missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports, now, holidays).length > 0).length;
     const pending = await db.report.count({ where: { status: "SUBMITTED" } });
     await notifyMany(staff.map((s) => s.id), `Wochenstart ${weekLabel(cw.year, cw.week)}`, `${pending} Bericht(e) warten auf Prüfung, ${backlog} Azubi(s) haben Rückstände.`, "/admin");
   }
@@ -49,8 +52,9 @@ export async function GET(req: NextRequest) {
 
   if (dow >= 2 && dow <= 5) {
     const y = subDays(now, 1); const yw = isoWeekOf(y); const yd = getISODay(y);
+    const yHoliday = holidays.has(fmtDate(y, "yyyy-MM-dd"));
     const ids = azubis
-      .filter((a) => a.berichtsheftTyp === "DAILY")
+      .filter((a) => a.berichtsheftTyp === "DAILY" && !yHoliday)
       .filter((a) => !a.reports.some((r) => r.year === yw.year && r.week === yw.week && r.day === yd))
       .map((a) => a.id);
     await notifyMany(ids, "Tagesbericht fehlt", `Für ${fmtDate(y, "EEEE, dd.MM.")} liegt noch kein Bericht vor.`, "/azubi/berichte");

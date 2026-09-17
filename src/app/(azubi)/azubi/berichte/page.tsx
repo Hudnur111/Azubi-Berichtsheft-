@@ -14,6 +14,8 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { Empty } from "@/components/ui/empty";
 import { ButtonLink } from "@/components/ui/button";
 import { createReportFromForm } from "@/actions/reports";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { currentWeek, dayKey, expectedWeeks, expectedWorkdays, fmtDate, reportTitle, toDateInput, weekLabel } from "@/lib/dates";
 import { STATUS_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -35,9 +37,10 @@ export default async function BerichtePage({ searchParams }: { searchParams: Pro
   ]);
   const cw = currentWeek();
   const today = new Date();
+  const holidays = holidayMap([today.getFullYear() - 1, today.getFullYear()], (await getSettings()).bundesland);
   const have = new Set(all.map((r) => dayKey(r.year, r.week, r.day)));
   const missing = daily
-    ? expectedWorkdays(me.ausbildungsbeginn).filter((d) => !have.has(dayKey(d.year, d.week, d.day))).map((d) => ({ key: dayKey(d.year, d.week, d.day), label: fmtDate(d.date, "EEEEEE, dd.MM.yyyy"), date: toDateInput(d.date) })).reverse()
+    ? expectedWorkdays(me.ausbildungsbeginn, today, holidays).filter((d) => !have.has(dayKey(d.year, d.week, d.day))).map((d) => ({ key: dayKey(d.year, d.week, d.day), label: fmtDate(d.date, "EEEEEE, dd.MM.yyyy"), date: toDateInput(d.date) })).reverse()
     : expectedWeeks(me.ausbildungsbeginn).filter((w) => !have.has(dayKey(w.year, w.week, 0))).map((w) => ({ key: dayKey(w.year, w.week, 0), label: `${weekLabel(w.year, w.week)} · ab ${fmtDate(w.start)}`, year: w.year, week: w.week })).reverse();
   const isCurrent = (r: { year: number; week: number; day: number }) => r.year === cw.year && r.week === cw.week && (daily ? r.day === getISODay(today) : true);
   const years = [...new Set(all.map((r) => r.year))].sort((a, b) => b - a);

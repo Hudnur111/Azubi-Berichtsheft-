@@ -51,8 +51,10 @@ model Department {
 
 model User {
   id               String    @id @default(cuid())
-  email            String    @unique
-  passwordHash     String
+  email            String?   @unique
+  username         String
+  loginGroup       String    @default("AZUBI") // AZUBI | STAFF – Benutzername ist je Portal eindeutig
+  passwordHash     String    @default("") // leer = Einladung noch nicht angenommen
   firstName        String
   lastName         String
   role             Role      @default(AZUBI)
@@ -70,6 +72,9 @@ model User {
   ausbildungsbeginn DateTime?
   ausbildungsende  DateTime?
   berichtsheftTyp  ReportType? // null = noch nicht gewählt (Onboarding)
+  inviteCode       String?   @unique // 8-stelliger Registrierungscode (Azubi)
+  invitedById      String?
+  registeredAt     DateTime?
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -86,6 +91,7 @@ model User {
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
 
+  @@unique([username, loginGroup])
   @@index([role])
   @@index([departmentId])
   @@index([trainerId])
@@ -230,4 +236,36 @@ model Message {
 
   @@index([senderId, recipientId, createdAt])
   @@index([recipientId, readAt])
+}
+
+/// Globale Einstellungen (Singleton, id = "default")
+model AppSetting {
+  id           String   @id @default("default")
+  companyName  String   @default("Azubi-Berichtsheft")
+  logoData     Bytes?
+  logoMime     String?
+  impressum    String?
+  datenschutz  String?
+  bundesland   String?  // z. B. BW, BY, NW – für Feiertage
+  supportEmail String?
+  updatedAt    DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Einmalig lesbare Geheimnisse (z. B. generiertes Startpasswort zur Anzeige nach Redirect)
+model OneTimeSecret {
+  id        String   @id @default(cuid())
+  payload   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

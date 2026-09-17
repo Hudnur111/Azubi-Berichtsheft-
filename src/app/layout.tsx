@@ -1,8 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { getSettings } from "@/lib/settings";
 
-export const metadata: Metadata = {
-  title: { default: "Berichtsheft", template: "%s · Berichtsheft" },
+export async function generateMetadata(): Promise<Metadata> {
+  const { companyName } = await getSettings();
+  return { ...metadata, title: { default: `Berichtsheft · ${companyName}`, template: `%s · ${companyName}` } };
+}
+
+const metadata: Metadata = {
   description: "Digitales Berichtsheft für Auszubildende – schreiben, einreichen, prüfen.",
   applicationName: "Azubi-Berichtsheft",
   icons: { icon: "/icon.svg" },

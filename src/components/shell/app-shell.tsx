@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { BookOpenCheck, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { Brand } from "./auth-layout";
 import type { CurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -13,13 +14,7 @@ export function AppShell({ user, nav, portal, unread, children }: { user: Curren
   return (
     <div className="flex min-h-screen">
       <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
-        <Link href={nav[0]?.href ?? "/"} className="flex items-center gap-3 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white"><BookOpenCheck className="h-5 w-5" /></div>
-          <div>
-            <p className="text-sm font-semibold leading-tight">Berichtsheft</p>
-            <p className="text-xs text-slate-500">{portal}</p>
-          </div>
-        </Link>
+        <Link href={nav[0]?.href ?? "/"} className="block px-5 py-5"><Brand /><span className="mt-1 block pl-[52px] text-[11px] text-slate-400">{portal}</span></Link>
         <nav className="flex-1 space-y-1 px-3">
           <NavLinks items={nav} />
         </nav>
@@ -39,10 +34,7 @@ export function AppShell({ user, nav, portal, unread, children }: { user: Curren
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur lg:px-8">
-          <div className="flex items-center gap-2 lg:hidden">
-            <BookOpenCheck className="h-5 w-5 text-brand-600" />
-            <span className="text-sm font-semibold">Berichtsheft</span>
-          </div>
+          <div className="lg:hidden"><Brand size="sm" /></div>
           <div className="hidden text-sm text-slate-500 lg:block">
             {user.department ? <>Abteilung: <span className="font-medium text-slate-700">{user.department.name}</span></> : portal}
           </div>
@@ -55,7 +47,7 @@ export function AppShell({ user, nav, portal, unread, children }: { user: Curren
         </header>
         <main className="flex-1 px-4 py-6 pb-24 lg:px-8 lg:pb-8">{children}</main>
         <nav className="no-print fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white lg:hidden">
-          <NavLinks items={nav.slice(0, 5)} mobile />
+          <NavLinks items={(nav.filter((n) => n.mobile).length ? nav.filter((n) => n.mobile) : nav).slice(0, 5)} mobile />
         </nav>
       </div>
     </div>

@@ -6,18 +6,19 @@ import { PasswordForm } from "@/components/shell/password-form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { QueryToast } from "@/components/ui/toast";
 import { chooseReportType } from "@/actions/reports";
-import { fmtDate } from "@/lib/dates";
+import { ausbildungsjahrAt, fmtDate } from "@/lib/dates";
+import { updateOwnProfile } from "@/actions/auth";
 import { fullName } from "@/lib/utils";
 
-export default async function ProfilPage({ searchParams }: { searchParams: Promise<{ pw?: string; ok?: string }> }) {
+export default async function ProfilPage({ searchParams }: { searchParams: Promise<{ pw?: string; ok?: string; error?: string }> }) {
   const me = await requireAzubi();
-  const { pw, ok } = await searchParams;
+  const { pw, ok, error } = await searchParams;
   const [trainer, rotations] = await Promise.all([
     me.trainerId ? db.user.findUnique({ where: { id: me.trainerId }, select: { firstName: true, lastName: true, email: true } }) : null,
     db.rotation.findMany({ where: { azubiId: me.id }, orderBy: { startDate: "asc" }, include: { department: { select: { name: true } } } }),
   ]);
   const rows: [string, React.ReactNode][] = [
-    ["Name", fullName(me)], ["E-Mail", me.email], ["Ausbildungsberuf", me.beruf ?? "–"],
+    ["Name", fullName(me)], ["Benutzername", me.username], ["Ausbildungsberuf", me.beruf ?? "–"], ["Ausbildungsjahr", ausbildungsjahrAt(me.ausbildungsbeginn) ?? me.ausbildungsjahr ?? "–"],
     ["Ausbildungszeitraum", `${fmtDate(me.ausbildungsbeginn)} – ${fmtDate(me.ausbildungsende)}`],
     ["Stammabteilung", me.department?.name ?? "–"],
     ["Ausbilder/in", trainer ? <>{fullName(trainer)} <span className="text-slate-400">· {trainer.email}</span></> : "–"],
@@ -25,7 +26,7 @@ export default async function ProfilPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Profil" />
-      <QueryToast ok={ok} />
+      <QueryToast ok={ok} error={error} />
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <Card>
@@ -58,10 +59,16 @@ export default async function ProfilPage({ searchParams }: { searchParams: Promi
             ) : <CardBody className="text-sm text-slate-500">Noch keine Einsätze geplant.</CardBody>}
           </Card>
         </div>
-        <Card>
-          <CardHeader title="Passwort ändern" />
-          <CardBody><PasswordForm forced={pw === "1" || me.mustChangePassword} /></CardBody>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="E-Mail-Adresse" description="Für Passwort-Zurücksetzen und E-Mail-Benachrichtigungen (optional)." />
+            <CardBody><form action={updateOwnProfile} className="flex flex-wrap items-end gap-2"><div className="flex-1"><label className="label" htmlFor="email">E-Mail</label><input id="email" name="email" type="email" defaultValue={me.email ?? ""} className="input" /></div><SubmitButton variant="outline">Speichern</SubmitButton></form></CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Passwort ändern" />
+            <CardBody><PasswordForm forced={pw === "1" || me.mustChangePassword} /></CardBody>
+          </Card>
+        </div>
       </div>
     </>
   );

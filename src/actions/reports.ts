@@ -8,7 +8,9 @@ import { db } from "@/lib/db";
 import { requireAzubi, requireUser, requireStaff } from "@/lib/auth";
 import { audit, notify, notifyMany } from "@/lib/audit";
 import { ausbildungsjahrAt, isoWeekOf, reportTitle, weekRange } from "@/lib/dates";
-import { getISODay, startOfDay } from "date-fns";
+import { format, getISODay, startOfDay } from "date-fns";
+import { holidayMap } from "@/lib/holidays";
+import { getSettings } from "@/lib/settings";
 import { CATEGORIES } from "@/lib/labels";
 import { reportScope } from "@/lib/permissions";
 import type { ActionState } from "@/lib/utils";
@@ -54,6 +56,12 @@ export async function openOrCreateReport(year: number, week: number, day = 0) {
   const departmentId = await currentDepartmentFor(me.id, me.departmentId);
   const isDaily = day > 0;
   const dayDate = isDaily ? startOfDay(new Date(start.getTime() + (day - 1) * 86400000)) : null;
+  const { bundesland } = await getSettings();
+  const holidays = holidayMap([year, year + 1, year - 1], bundesland);
+  const entryFor = (d: Date, i: number) => {
+    const h = holidays.get(format(d, "yyyy-MM-dd"));
+    return h ? { date: d, sortOrder: i, hours: 0, category: "FEIERTAG" as const, description: h } : { date: d, sortOrder: i, hours: 8 };
+  };
   const report = await db.report.create({
     data: {
       azubiId: me.id,
@@ -63,7 +71,7 @@ export async function openOrCreateReport(year: number, week: number, day = 0) {
       weekEnd: dayDate ?? end,
       departmentId,
       ausbildungsjahr: ausbildungsjahrAt(me.ausbildungsbeginn, dayDate ?? start),
-      entries: { create: isDaily ? [{ date: dayDate!, sortOrder: 0, hours: 8 }] : workdays.map((d, i) => ({ date: d, sortOrder: i, hours: 8 })) },
+      entries: { create: isDaily ? [entryFor(dayDate!, 0)] : workdays.map(entryFor) },
     },
   });
   await audit(me.id, "REPORT_CREATED", "Report", report.id, { year, week, day });
