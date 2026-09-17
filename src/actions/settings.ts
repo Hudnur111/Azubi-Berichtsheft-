@@ -12,7 +12,7 @@ const enc = encodeURIComponent;
 const schema = z.object({
   companyName: z.string().trim().min(2, "Firmenname zu kurz.").max(100),
   supportEmail: z.string().trim().toLowerCase().email("Ungültige Support-E-Mail.").optional().or(z.literal("")),
-  bundesland: z.string().optional().transform((v) => (v && v in BUNDESLAENDER ? v : null)),
+  bundesland: z.string().optional().transform((v) => (v && (v in BUNDESLAENDER || v === "DE") ? v : "BW")),
   impressum: z.string().max(20000).optional(),
   datenschutz: z.string().max(40000).optional(),
 });

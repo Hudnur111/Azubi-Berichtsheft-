@@ -43,7 +43,7 @@ Beide Portale liegen in **einer Codebasis**. Über die Umgebungsvariable `PORTAL
 - Abteilungen, Durchlaufplan (Abteilungseinsätze mit automatischer Zuordnung der Berichte)
 - Textbausteine für alle oder je Abteilung, CSV-Export, Volltextsuche, revisionssicheres Audit-Log
 - **Einstellungen**: Firmenname, Logo (erscheint in App, Login und E-Mails), Bundesland für Feiertage, Impressum und Datenschutz, Systemstatus der Konfiguration
-- **Feiertage** werden automatisch in neuen Berichten vorbelegt, im Kalender angezeigt und bei Rückständen nicht mitgezählt
+- **Feiertage** (Standard: Baden-Württemberg, in den Einstellungen änderbar) werden automatisch in neuen Berichten vorbelegt, im Kalender angezeigt und bei Rückständen nicht mitgezählt
 
 ## Tech-Stack
 

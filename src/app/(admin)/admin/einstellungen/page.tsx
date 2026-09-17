@@ -32,8 +32,8 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
                 <div><label className="label" htmlFor="supportEmail">Support-E-Mail (optional)</label><input id="supportEmail" name="supportEmail" type="email" defaultValue={s.supportEmail ?? ""} className="input" /></div>
                 <div>
                   <label className="label" htmlFor="bundesland">Bundesland (Feiertage)</label>
-                  <select id="bundesland" name="bundesland" defaultValue={s.bundesland ?? ""} className="input"><option value="">Nur bundesweite Feiertage</option>{Object.entries(BUNDESLAENDER).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-                  <p className="mt-1 text-xs text-slate-500">Feiertage werden in neuen Berichten automatisch vorbelegt und im Kalender angezeigt.</p>
+                  <select id="bundesland" name="bundesland" defaultValue={s.bundesland} className="input">{Object.entries(BUNDESLAENDER).map(([k, v]) => <option key={k} value={k}>{v}</option>)}<option value="DE">Nur bundesweite Feiertage</option></select>
+                  <p className="mt-1 text-xs text-slate-500">Standard: Baden-Württemberg (inkl. Heilige Drei Könige, Fronleichnam, Allerheiligen). Feiertage werden in neuen Berichten vorbelegt und im Kalender angezeigt.</p>
                 </div>
               </div>
               <div><label className="label" htmlFor="impressum">Impressum</label><textarea id="impressum" name="impressum" rows={6} defaultValue={s.impressum ?? ""} className="input font-mono text-xs" placeholder="Firma, Anschrift, Vertretungsberechtigte, Kontakt, Registereintrag, USt-ID …" /></div>

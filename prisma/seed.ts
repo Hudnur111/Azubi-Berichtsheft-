@@ -15,7 +15,7 @@ async function main() {
     update: {},
     create: { username: "Admin", loginGroup: "STAFF", email: adminEmail, passwordHash: startPw, firstName: "System", lastName: "Admin", role: "ADMIN" },
   });
-  await db.appSetting.upsert({ where: { id: "default" }, update: {}, create: { id: "default", companyName: process.env.SEED_COMPANY ?? "Azubi-Berichtsheft" } });
+  await db.appSetting.upsert({ where: { id: "default" }, update: {}, create: { id: "default", companyName: process.env.SEED_COMPANY ?? "Azubi-Berichtsheft", bundesland: "BW" } });
   console.log(`✔ Ausbilder-Portal: Benutzername "Admin" (${admin.email})`);
 
   if ((process.env.SEED_DEMO ?? "true") !== "true") return;

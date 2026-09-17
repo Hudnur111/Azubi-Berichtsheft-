@@ -246,7 +246,7 @@ model AppSetting {
   logoMime     String?
   impressum    String?
   datenschutz  String?
-  bundesland   String?  // z. B. BW, BY, NW – für Feiertage
+  bundesland   String   @default("BW") // Bundesland für Feiertage (DE = nur bundesweit)
   supportEmail String?
   updatedAt    DateTime @updatedAt
 }
