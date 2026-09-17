@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { QueryToast } from "@/components/ui/toast";
 import { Alert } from "@/components/ui/alert";
 import { ReportEditor } from "@/components/reports/report-editor";
-import { fmtDate, weekdayLong, weekLabel } from "@/lib/dates";
+import { fmtDate, reportTitle, weekdayLong, weekLabel } from "@/lib/dates";
 
 export default async function EditReport({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
   const me = await requireAzubi();
@@ -27,8 +27,8 @@ export default async function EditReport({ params, searchParams }: { params: Pro
   return (
     <>
       <PageHeader
-        title={`${weekLabel(report.year, report.week)} bearbeiten`}
-        description={<>{fmtDate(report.weekStart)} – {fmtDate(report.weekEnd)} · <StatusBadge status={report.status} /> · Änderungen werden automatisch gespeichert</>}
+        title={`${reportTitle(report)} bearbeiten`}
+        description={<>{report.type === "DAILY" ? weekLabel(report.year, report.week) : `${fmtDate(report.weekStart)} – ${fmtDate(report.weekEnd)}`} · <StatusBadge status={report.status} /> · Änderungen werden automatisch gespeichert</>}
         actions={
           <>
             <ButtonLink href="/azubi/berichte" variant="ghost"><ArrowLeft className="h-4 w-4" /> Zurück</ButtonLink>

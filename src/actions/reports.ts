@@ -7,7 +7,8 @@ import { Prisma, type EntryCategory } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireAzubi, requireUser, requireStaff } from "@/lib/auth";
 import { audit, notify, notifyMany } from "@/lib/audit";
-import { ausbildungsjahrAt, weekRange, weekLabel } from "@/lib/dates";
+import { ausbildungsjahrAt, isoWeekOf, reportTitle, weekRange } from "@/lib/dates";
+import { getISODay, startOfDay } from "date-fns";
 import { CATEGORIES } from "@/lib/labels";
 import { reportScope } from "@/lib/permissions";
 import type { ActionState } from "@/lib/utils";
@@ -44,31 +45,57 @@ async function reviewersFor(azubiId: string, departmentId: string | null) {
 
 /* ---------- Azubi: Bericht anlegen / öffnen ---------- */
 
-export async function openOrCreateReport(year: number, week: number) {
+export async function openOrCreateReport(year: number, week: number, day = 0) {
   const me = await requireAzubi();
-  const existing = await db.report.findUnique({ where: { azubiId_year_week: { azubiId: me.id, year, week } } });
+  const existing = await db.report.findUnique({ where: { azubiId_year_week_day: { azubiId: me.id, year, week, day } } });
   if (existing) redirect(`/azubi/berichte/${existing.id}`);
 
   const { start, end, workdays } = weekRange(year, week);
   const departmentId = await currentDepartmentFor(me.id, me.departmentId);
+  const isDaily = day > 0;
+  const dayDate = isDaily ? startOfDay(new Date(start.getTime() + (day - 1) * 86400000)) : null;
   const report = await db.report.create({
     data: {
       azubiId: me.id,
-      year, week, weekStart: start, weekEnd: end,
+      type: isDaily ? "DAILY" : "WEEKLY",
+      year, week, day,
+      weekStart: dayDate ?? start,
+      weekEnd: dayDate ?? end,
       departmentId,
-      ausbildungsjahr: ausbildungsjahrAt(me.ausbildungsbeginn, start),
-      entries: { create: workdays.map((d, i) => ({ date: d, sortOrder: i, hours: 8 })) },
+      ausbildungsjahr: ausbildungsjahrAt(me.ausbildungsbeginn, dayDate ?? start),
+      entries: { create: isDaily ? [{ date: dayDate!, sortOrder: 0, hours: 8 }] : workdays.map((d, i) => ({ date: d, sortOrder: i, hours: 8 })) },
     },
   });
-  await audit(me.id, "REPORT_CREATED", "Report", report.id, { year, week });
+  await audit(me.id, "REPORT_CREATED", "Report", report.id, { year, week, day });
   redirect(`/azubi/berichte/${report.id}/bearbeiten`);
 }
 
 export async function createReportFromForm(formData: FormData) {
+  const dateRaw = formData.get("date");
+  if (dateRaw) {
+    // Tagesbericht: Datum → ISO-Jahr/-Woche/-Tag
+    const d = new Date(String(dateRaw));
+    if (Number.isNaN(d.getTime())) redirect("/azubi/berichte?error=Ungültiges+Datum");
+    const iso = getISODay(d);
+    if (iso > 5) redirect(`/azubi/berichte?error=${encodeURIComponent("Bitte einen Werktag (Mo–Fr) wählen.")}`);
+    const { year, week } = isoWeekOf(d);
+    await openOrCreateReport(year, week, iso);
+  }
   const year = Number(formData.get("year"));
   const week = Number(formData.get("week"));
   if (!Number.isInteger(year) || !Number.isInteger(week) || week < 1 || week > 53) redirect("/azubi/berichte?error=Ungültige+Woche");
-  await openOrCreateReport(year, week);
+  await openOrCreateReport(year, week, 0);
+}
+
+/** Onboarding / Profil: Wochen- oder Tagesbericht wählen. */
+export async function chooseReportType(formData: FormData) {
+  const me = await requireAzubi();
+  const type = String(formData.get("type"));
+  if (type !== "WEEKLY" && type !== "DAILY") redirect("/azubi/start?error=Ungültige+Auswahl");
+  await db.user.update({ where: { id: me.id }, data: { berichtsheftTyp: type } });
+  await audit(me.id, "REPORT_TYPE_CHOSEN", "User", me.id, { type });
+  const back = formData.get("back") === "profil" ? "/azubi/profil?ok=Berichtstyp+gespeichert" : "/azubi";
+  redirect(back);
 }
 
 /* ---------- Azubi: Speichern ---------- */
@@ -115,6 +142,30 @@ export async function saveReport(payload: SavePayload): Promise<ActionState> {
 }
 
 
+/** Ausbilder/Admin: Bericht korrigieren. Jede Speicherung wird protokolliert und dem Azubi mitgeteilt. */
+export async function saveReportStaff(payload: SavePayload): Promise<ActionState> {
+  const me = await requireStaff();
+  const parsed = saveSchema.safeParse(payload);
+  if (!parsed.success) return { error: "Ungültige Daten: " + parsed.error.issues[0]?.message };
+  const { reportId, summary, entries } = parsed.data;
+  const report = await db.report.findFirst({ where: { id: reportId, ...reportScope(me) }, include: { entries: { select: { id: true, description: true, category: true, hours: true } } } });
+  if (!report) return { error: "Kein Zugriff auf diesen Bericht." };
+  if (report.status === "APPROVED") return { error: "Genehmigte Berichte zuerst wieder öffnen." };
+  const byId = new Map(report.entries.map((e) => [e.id, e]));
+  const changed = entries.filter((e) => { const o = byId.get(e.id); return o && (o.description !== e.description || o.category !== e.category || Number(o.hours) !== e.hours); });
+  const summaryChanged = (report.summary ?? "") !== summary;
+  if (!changed.length && !summaryChanged) return { ok: true, message: "Keine Änderungen" };
+  await db.$transaction([
+    db.report.update({ where: { id: reportId }, data: { summary } }),
+    ...changed.map((e) => db.reportEntry.update({ where: { id: e.id }, data: { category: e.category, description: e.description, hours: new Prisma.Decimal(e.hours) } })),
+    db.comment.create({ data: { reportId, authorId: me.id, text: `Bericht von ${fullName(me)} bearbeitet (${changed.length} Eintrag/Einträge${summaryChanged ? ", Zusammenfassung" : ""}).` } }),
+  ]);
+  await audit(me.id, "REPORT_EDITED_BY_STAFF", "Report", reportId, { entries: changed.map((e) => e.id), summaryChanged });
+  await notify(report.azubiId, "Bericht von Ausbildung bearbeitet", `${fullName(me)} hat ${reportTitle(report)} korrigiert.`, `/azubi/berichte/${reportId}`);
+  revalidatePath(`/admin/berichte/${reportId}`);
+  return { ok: true, message: "Gespeichert – Azubi wurde informiert" };
+}
+
 /* ---------- Azubi: Einreichen / Zurückziehen / Löschen ---------- */
 
 export async function submitReport(formData: FormData) {
@@ -137,9 +188,9 @@ export async function submitReportById(reportId: string) {
     where: { id: reportId },
     data: { status: "SUBMITTED", submittedAt: new Date(), reviewNote: null, reviewedAt: null, reviewerId: null, version: report.status === "REJECTED" ? { increment: 1 } : undefined },
   });
-  await audit(me.id, "REPORT_SUBMITTED", "Report", reportId, { week: weekLabel(report.year, report.week) });
+  await audit(me.id, "REPORT_SUBMITTED", "Report", reportId, { week: reportTitle(report) });
   const recipients = await reviewersFor(me.id, report.departmentId);
-  await notifyMany(recipients, "Neuer Bericht zur Prüfung", `${fullName(me)} hat ${weekLabel(report.year, report.week)} eingereicht.`, `/admin/berichte/${reportId}`);
+  await notifyMany(recipients, "Neuer Bericht zur Prüfung", `${fullName(me)} hat ${reportTitle(report)} eingereicht.`, `/admin/berichte/${reportId}`);
   revalidatePath("/azubi");
   redirect(`/azubi/berichte/${reportId}?ok=${encodeURIComponent("Bericht wurde zur Prüfung eingereicht.")}`);
 }
@@ -160,7 +211,7 @@ export async function deleteDraft(formData: FormData) {
   const report = await db.report.findFirst({ where: { id: reportId, azubiId: me.id, status: { in: ["DRAFT", "REJECTED"] } } });
   if (!report) redirect(`/azubi/berichte/${reportId}?error=${encodeURIComponent("Nur Entwürfe können gelöscht werden.")}`);
   await db.report.delete({ where: { id: reportId } });
-  await audit(me.id, "REPORT_DELETED", "Report", reportId, { week: weekLabel(report.year, report.week) });
+  await audit(me.id, "REPORT_DELETED", "Report", reportId, { week: reportTitle(report) });
   redirect(`/azubi/berichte?ok=${encodeURIComponent("Entwurf gelöscht.")}`);
 }
 
@@ -178,9 +229,9 @@ export async function addComment(formData: FormData) {
   await audit(me.id, "COMMENT_ADDED", "Report", reportId);
   if (me.role === "AZUBI") {
     const recipients = await reviewersFor(me.id, report.departmentId);
-    await notifyMany(recipients, "Neuer Kommentar", `${fullName(me)} hat ${weekLabel(report.year, report.week)} kommentiert.`, `/admin/berichte/${reportId}`);
+    await notifyMany(recipients, "Neuer Kommentar", `${fullName(me)} hat ${reportTitle(report)} kommentiert.`, `/admin/berichte/${reportId}`);
   } else {
-    await notify(report.azubi.id, "Neuer Kommentar", `${fullName(me)} hat ${weekLabel(report.year, report.week)} kommentiert.`, `/azubi/berichte/${reportId}`);
+    await notify(report.azubi.id, "Neuer Kommentar", `${fullName(me)} hat ${reportTitle(report)} kommentiert.`, `/azubi/berichte/${reportId}`);
   }
   revalidatePath(back);
   redirect(back);
@@ -204,9 +255,9 @@ export async function approveReport(formData: FormData) {
   if (!report || report.status !== "SUBMITTED") redirect(`/admin/berichte/${reportId}?error=${encodeURIComponent("Bericht ist nicht zur Prüfung eingereicht.")}`);
   await db.report.update({ where: { id: reportId }, data: { status: "APPROVED", reviewedAt: new Date(), reviewerId: me.id, reviewNote: note || null } });
   await audit(me.id, "REPORT_APPROVED", "Report", reportId, { azubiId: report.azubiId });
-  await notify(report.azubi.id, "Bericht genehmigt ✅", `${weekLabel(report.year, report.week)} wurde von ${fullName(me)} genehmigt.`, `/azubi/berichte/${reportId}`);
+  await notify(report.azubi.id, "Bericht genehmigt ✅", `${reportTitle(report)} wurde von ${fullName(me)} genehmigt.`, `/azubi/berichte/${reportId}`);
   revalidatePath("/admin");
-  redirect(`/admin/pruefung?ok=${encodeURIComponent(`${weekLabel(report.year, report.week)} von ${fullName(report.azubi)} genehmigt.`)}`);
+  redirect(`/admin/pruefung?ok=${encodeURIComponent(`${reportTitle(report)} von ${fullName(report.azubi)} genehmigt.`)}`);
 }
 
 export async function rejectReport(formData: FormData) {
@@ -220,9 +271,9 @@ export async function rejectReport(formData: FormData) {
     db.comment.create({ data: { reportId, authorId: me.id, text: `Rückgabe: ${note}` } }),
   ]);
   await audit(me.id, "REPORT_REJECTED", "Report", reportId, { azubiId: report.azubiId, note });
-  await notify(report.azubi.id, "Bericht zurückgegeben", `${weekLabel(report.year, report.week)}: ${note}`, `/azubi/berichte/${reportId}/bearbeiten`);
+  await notify(report.azubi.id, "Bericht zurückgegeben", `${reportTitle(report)}: ${note}`, `/azubi/berichte/${reportId}/bearbeiten`);
   revalidatePath("/admin");
-  redirect(`/admin/pruefung?ok=${encodeURIComponent(`${weekLabel(report.year, report.week)} an ${fullName(report.azubi)} zurückgegeben.`)}`);
+  redirect(`/admin/pruefung?ok=${encodeURIComponent(`${reportTitle(report)} an ${fullName(report.azubi)} zurückgegeben.`)}`);
 }
 
 export async function bulkApprove(formData: FormData) {
@@ -231,12 +282,12 @@ export async function bulkApprove(formData: FormData) {
   if (!ids.length) redirect("/admin/pruefung?error=Keine+Berichte+ausgewählt");
   const reports = await db.report.findMany({
     where: { id: { in: ids }, status: "SUBMITTED", ...reportScope(me) },
-    select: { id: true, azubiId: true, year: true, week: true },
+    select: { id: true, azubiId: true, year: true, week: true, type: true, weekStart: true },
   });
   await db.report.updateMany({ where: { id: { in: reports.map((r) => r.id) } }, data: { status: "APPROVED", reviewedAt: new Date(), reviewerId: me.id } });
   for (const r of reports) {
     await audit(me.id, "REPORT_APPROVED", "Report", r.id, { bulk: true });
-    await notify(r.azubiId, "Bericht genehmigt ✅", `${weekLabel(r.year, r.week)} wurde von ${fullName(me)} genehmigt.`, `/azubi/berichte/${r.id}`);
+    await notify(r.azubiId, "Bericht genehmigt ✅", `${reportTitle(r)} wurde von ${fullName(me)} genehmigt.`, `/azubi/berichte/${r.id}`);
   }
   revalidatePath("/admin");
   redirect(`/admin/pruefung?ok=${encodeURIComponent(`${reports.length} Bericht(e) genehmigt.`)}`);
@@ -289,4 +340,45 @@ export async function deleteTemplate(formData: FormData) {
   const del = await db.template.deleteMany({ where });
   if (!del.count) redirect(`${back}?error=${encodeURIComponent("Kein Zugriff.")}`);
   redirect(`${back}?ok=${encodeURIComponent("Textbaustein gelöscht.")}`);
+}
+
+/* ---------- Anhänge ---------- */
+
+const MAX_ATTACHMENT = 4 * 1024 * 1024; // 4 MB (Vercel-Body-Limit)
+const ALLOWED_MIME = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+
+export async function uploadAttachment(formData: FormData) {
+  const me = await requireUser();
+  const reportId = String(formData.get("reportId"));
+  const back = me.role === "AZUBI" ? `/azubi/berichte/${reportId}` : `/admin/berichte/${reportId}`;
+  const file = formData.get("file");
+  if (!(file instanceof File) || !file.size) redirect(`${back}?error=${encodeURIComponent("Keine Datei ausgewählt.")}`);
+  if (file.size > MAX_ATTACHMENT) redirect(`${back}?error=${encodeURIComponent("Datei zu groß (max. 4 MB).")}`);
+  if (!ALLOWED_MIME.includes(file.type)) redirect(`${back}?error=${encodeURIComponent("Dateityp nicht erlaubt (Bilder, PDF, Office, Text).")}`);
+  const report = await db.report.findFirst({ where: { id: reportId, ...reportScope(me) }, select: { id: true, status: true, azubiId: true, _count: { select: { attachments: true } } } });
+  if (!report) redirect(`${back}?error=${encodeURIComponent("Kein Zugriff.")}`);
+  if (me.role === "AZUBI" && report.status === "APPROVED") redirect(`${back}?error=${encodeURIComponent("Genehmigte Berichte können nicht mehr ergänzt werden.")}`);
+  if (report._count.attachments >= 10) redirect(`${back}?error=${encodeURIComponent("Maximal 10 Anhänge pro Bericht.")}`);
+  const data = Buffer.from(await file.arrayBuffer());
+  await db.attachment.create({ data: { reportId, uploadedById: me.id, filename: file.name.slice(0, 200), mimeType: file.type, size: file.size, data } });
+  await audit(me.id, "ATTACHMENT_ADDED", "Report", reportId, { filename: file.name, size: file.size });
+  revalidatePath(back);
+  redirect(`${back}?ok=${encodeURIComponent("Anhang hochgeladen.")}`);
+}
+
+export async function deleteAttachment(formData: FormData) {
+  const me = await requireUser();
+  const id = String(formData.get("id"));
+  const att = await db.attachment.findUnique({ where: { id }, include: { report: { select: { id: true, status: true, azubiId: true } } } });
+  const back = me.role === "AZUBI" ? `/azubi/berichte/${att?.report.id ?? ""}` : `/admin/berichte/${att?.report.id ?? ""}`;
+  if (!att) redirect(`${back}?error=${encodeURIComponent("Anhang nicht gefunden.")}`);
+  const own = att.uploadedById === me.id;
+  const allowed = me.role === "ADMIN" || (own && !(me.role === "AZUBI" && att.report.status === "APPROVED"));
+  if (!allowed) redirect(`${back}?error=${encodeURIComponent("Kein Zugriff.")}`);
+  await db.attachment.delete({ where: { id } });
+  await audit(me.id, "ATTACHMENT_DELETED", "Report", att.report.id, { filename: att.filename });
+  revalidatePath(back);
+  redirect(`${back}?ok=${encodeURIComponent("Anhang gelöscht.")}`);
 }

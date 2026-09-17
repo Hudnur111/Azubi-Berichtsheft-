@@ -12,7 +12,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { SelectNav } from "@/components/ui/select-nav";
 import { bulkApprove } from "@/actions/reports";
-import { fmtDate, fmtDateTime, weekLabel } from "@/lib/dates";
+import { fmtDate, fmtDateTime, reportTitle, weekLabel } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 
 export default async function PruefungPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; dept?: string }> }) {
@@ -43,7 +43,7 @@ export default async function PruefungPage({ searchParams }: { searchParams: Pro
           />
           {reports.length ? (
             <Table>
-              <thead><tr><Th className="w-8"></Th><Th>Azubi</Th><Th>Woche</Th><Th>Abteilung</Th><Th>Eingereicht</Th><Th></Th></tr></thead>
+              <thead><tr><Th className="w-8"></Th><Th>Azubi</Th><Th>Bericht</Th><Th>Abteilung</Th><Th>Eingereicht</Th><Th></Th></tr></thead>
               <tbody>
                 {reports.map((r) => {
                   const days = Math.floor((Date.now() - new Date(r.submittedAt ?? r.updatedAt).getTime()) / 86400000);
@@ -51,7 +51,7 @@ export default async function PruefungPage({ searchParams }: { searchParams: Pro
                     <tr key={r.id} className="hover:bg-slate-50">
                       <Td><input type="checkbox" name="ids" value={r.id} className="h-4 w-4 rounded border-slate-300" aria-label="Auswählen" /></Td>
                       <Td><p className="font-medium text-slate-900">{fullName(r.azubi)}</p><p className="text-xs text-slate-500">{r.azubi.beruf ?? ""}</p></Td>
-                      <Td className="whitespace-nowrap">{weekLabel(r.year, r.week)}<br /><span className="text-xs text-slate-500">{fmtDate(r.weekStart)} – {fmtDate(r.weekEnd)}</span></Td>
+                      <Td className="whitespace-nowrap">{reportTitle(r)}<br /><span className="text-xs text-slate-500">{r.type === "DAILY" ? weekLabel(r.year, r.week) : `${fmtDate(r.weekStart)} – ${fmtDate(r.weekEnd)}`}</span></Td>
                       <Td>{r.department?.name ?? "–"}</Td>
                       <Td className="whitespace-nowrap">{fmtDateTime(r.submittedAt)} {days > 5 && <Badge tone="warning" className="ml-1">{days} Tage</Badge>}{r._count.comments > 0 && <span className="ml-2 text-xs text-slate-400">{r._count.comments} 💬</span>}</Td>
                       <Td className="text-right"><Link href={`/admin/berichte/${r.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">Prüfen <ChevronRight className="h-4 w-4" /></Link></Td>

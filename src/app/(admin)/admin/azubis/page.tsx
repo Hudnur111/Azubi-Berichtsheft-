@@ -10,7 +10,7 @@ import { Empty } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { QueryToast } from "@/components/ui/toast";
 import { ButtonLink } from "@/components/ui/button";
-import { currentWeek, expectedWeeks, fmtDate } from "@/lib/dates";
+import { fmtDate, missingUnits } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 
 export default async function AzubisPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; q?: string }> }) {
@@ -20,12 +20,10 @@ export default async function AzubisPage({ searchParams }: { searchParams: Promi
   const azubis = await db.user.findMany({
     where: { ...azubiScope(me), ...(q ? { OR: [{ firstName: { contains: q, mode: "insensitive" } }, { lastName: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }] } : {}) },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    include: { department: { select: { name: true } }, trainer: { select: { firstName: true, lastName: true } }, reports: { select: { year: true, week: true, status: true } } },
+    include: { department: { select: { name: true } }, trainer: { select: { firstName: true, lastName: true } }, reports: { select: { year: true, week: true, day: true, status: true } } },
   });
-  const cw = currentWeek();
   const rows = azubis.map((a) => {
-    const have = new Set(a.reports.map((r) => `${r.year}-${r.week}`));
-    const missing = expectedWeeks(a.ausbildungsbeginn).filter((w) => !have.has(`${w.year}-${w.week}`) && !(w.year === cw.year && w.week === cw.week)).length;
+    const missing = missingUnits(a.berichtsheftTyp, a.ausbildungsbeginn, a.reports).length;
     const pending = a.reports.filter((r) => r.status === "SUBMITTED").length;
     const approved = a.reports.filter((r) => r.status === "APPROVED").length;
     return { ...a, missing, pending, approved };
@@ -43,11 +41,11 @@ export default async function AzubisPage({ searchParams }: { searchParams: Promi
               {rows.map((a) => (
                 <tr key={a.id} className="hover:bg-slate-50">
                   <Td><p className="font-medium text-slate-900">{fullName(a)}{!a.active && <Badge tone="danger" className="ml-2">inaktiv</Badge>}</p><p className="text-xs text-slate-500">{a.email}</p></Td>
-                  <Td>{a.beruf ?? "–"}<br /><span className="text-xs text-slate-500">seit {fmtDate(a.ausbildungsbeginn)}</span></Td>
+                  <Td>{a.beruf ?? "–"}<br /><span className="text-xs text-slate-500">seit {fmtDate(a.ausbildungsbeginn)} · {a.berichtsheftTyp === "DAILY" ? "Tagesberichte" : a.berichtsheftTyp === "WEEKLY" ? "Wochenberichte" : "Typ offen"}</span></Td>
                   <Td>{a.department?.name ?? "–"}</Td>
                   <Td>{a.trainer ? fullName(a.trainer) : "–"}</Td>
                   <Td><span className="text-emerald-700">{a.approved} ✓</span>{a.pending > 0 && <Badge tone="brand" className="ml-2">{a.pending} offen</Badge>}</Td>
-                  <Td>{a.missing ? <Badge tone={a.missing > 3 ? "danger" : "warning"}>{a.missing} Wo.</Badge> : <Badge tone="success">aktuell</Badge>}</Td>
+                  <Td>{a.missing ? <Badge tone={a.missing > 3 ? "danger" : "warning"}>{a.missing} {a.berichtsheftTyp === "DAILY" ? "Tage" : "Wo."}</Badge> : <Badge tone="success">aktuell</Badge>}</Td>
                   <Td className="text-right"><Link href={`/admin/azubis/${a.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">Akte <ChevronRight className="h-4 w-4" /></Link></Td>
                 </tr>
               ))}

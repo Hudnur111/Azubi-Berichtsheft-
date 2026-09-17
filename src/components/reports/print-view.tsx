@@ -1,6 +1,6 @@
 import type { Department, Report, ReportEntry, User } from "@prisma/client";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/labels";
-import { fmtDate, weekdayLong, weekLabel } from "@/lib/dates";
+import { fmtDate, reportTitle, weekdayLong, weekLabel } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 import { PrintButton } from "./print-button";
 
@@ -15,7 +15,7 @@ export function PrintView({ report }: Props) {
       <div className="no-print mb-6 flex justify-end"><PrintButton /></div>
       <header className="border-b-2 border-slate-900 pb-4">
         <h1 className="text-xl font-bold">Ausbildungsnachweis (Berichtsheft)</h1>
-        <p className="text-sm text-slate-600">Wöchentlicher Nachweis gemäß § 13 Nr. 7 BBiG</p>
+        <p className="text-sm text-slate-600">{report.type === "DAILY" ? "Täglicher" : "Wöchentlicher"} Nachweis gemäß § 13 Nr. 7 BBiG · {reportTitle(report)}</p>
       </header>
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
         <div><dt className="text-xs uppercase text-slate-500">Auszubildende/r</dt><dd className="font-medium">{fullName(report.azubi)}</dd></div>

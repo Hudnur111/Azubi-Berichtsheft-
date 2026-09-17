@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileEdit, Printer, Send, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, FileDown, FileEdit, Printer, Send, Trash2, Undo2 } from "lucide-react";
 import { requireAzubi } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,8 +12,9 @@ import { QueryToast } from "@/components/ui/toast";
 import { Alert } from "@/components/ui/alert";
 import { CommentsCard, EntriesTable } from "@/components/reports/report-view";
 import { CommentForm } from "@/components/reports/comment-form";
+import { AttachmentsCard } from "@/components/reports/attachments-card";
 import { deleteDraft, submitReport, withdrawReport } from "@/actions/reports";
-import { fmtDate, fmtDateTime, weekLabel } from "@/lib/dates";
+import { fmtDate, fmtDateTime, reportTitle, weekLabel } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 
 export default async function ReportDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -27,6 +28,7 @@ export default async function ReportDetail({ params, searchParams }: { params: P
       comments: { orderBy: { createdAt: "asc" }, include: { author: { select: { firstName: true, lastName: true, role: true } } } },
       reviewer: { select: { firstName: true, lastName: true } },
       department: { select: { name: true } },
+      attachments: { orderBy: { createdAt: "asc" }, omit: { data: true }, include: { uploadedBy: { select: { firstName: true, lastName: true } } } },
     },
   });
   if (!report) notFound();
@@ -35,12 +37,13 @@ export default async function ReportDetail({ params, searchParams }: { params: P
   return (
     <>
       <PageHeader
-        title={weekLabel(report.year, report.week)}
-        description={<>{fmtDate(report.weekStart)} – {fmtDate(report.weekEnd)}{report.department && <> · {report.department.name}</>} · <StatusBadge status={report.status} /></>}
+        title={reportTitle(report)}
+        description={<>{report.type === "DAILY" ? weekLabel(report.year, report.week) : `${fmtDate(report.weekStart)} – ${fmtDate(report.weekEnd)}`}{report.department && <> · {report.department.name}</>} · <StatusBadge status={report.status} /></>}
         actions={
           <>
             <ButtonLink href="/azubi/berichte" variant="ghost"><ArrowLeft className="h-4 w-4" /> Zurück</ButtonLink>
-            <ButtonLink href={`/azubi/berichte/${report.id}/drucken`} variant="outline"><Printer className="h-4 w-4" /> PDF</ButtonLink>
+            <ButtonLink href={`/api/pdf?report=${report.id}`} variant="outline"><FileDown className="h-4 w-4" /> PDF</ButtonLink>
+            <ButtonLink href={`/azubi/berichte/${report.id}/drucken`} variant="ghost" title="Druckansicht"><Printer className="h-4 w-4" /></ButtonLink>
             {editable && <ButtonLink href={`/azubi/berichte/${report.id}/bearbeiten`}><FileEdit className="h-4 w-4" /> Bearbeiten</ButtonLink>}
             {editable && (
               <form action={submitReport}><input type="hidden" name="reportId" value={report.id} /><SubmitButton variant="success" pendingText="Wird eingereicht …"><Send className="h-4 w-4" /> Einreichen</SubmitButton></form>
@@ -68,6 +71,7 @@ export default async function ReportDetail({ params, searchParams }: { params: P
           {report.summary && <CardBody className="border-t border-slate-100"><p className="text-xs font-semibold uppercase text-slate-500">Wochenzusammenfassung</p><p className="mt-1 whitespace-pre-wrap text-sm">{report.summary}</p></CardBody>}
         </Card>
         <div className="space-y-6">
+          <AttachmentsCard reportId={report.id} attachments={report.attachments} canUpload={report.status !== "APPROVED"} meId={me.id} isAdmin={false} locked={report.status === "APPROVED"} />
           <CommentsCard comments={report.comments} form={<CommentForm reportId={report.id} />} />
           {editable && (
             <ConfirmForm action={deleteDraft} confirm="Diesen Entwurf wirklich löschen?">

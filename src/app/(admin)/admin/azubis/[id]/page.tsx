@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BellRing, ChevronRight, Pencil } from "lucide-react";
+import { ArrowLeft, BellRing, ChevronRight, FileDown, MessageCircle, Pencil } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { azubiScope } from "@/lib/permissions";
@@ -13,7 +13,7 @@ import { QueryToast } from "@/components/ui/toast";
 import { ButtonLink } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { remindAzubi } from "@/actions/admin";
-import { currentWeek, expectedWeeks, fmtDate, weekLabel } from "@/lib/dates";
+import { fmtDate, missingUnits, reportTitle, weekLabel } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 
 export default async function AzubiAkte({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
@@ -29,9 +29,8 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
     },
   });
   if (!azubi) notFound();
-  const cw = currentWeek();
-  const have = new Set(azubi.reports.map((r) => `${r.year}-${r.week}`));
-  const missing = expectedWeeks(azubi.ausbildungsbeginn).filter((w) => !have.has(`${w.year}-${w.week}`) && !(w.year === cw.year && w.week === cw.week)).reverse();
+  const missing = missingUnits(azubi.berichtsheftTyp, azubi.ausbildungsbeginn, azubi.reports).reverse();
+  const daily = azubi.berichtsheftTyp === "DAILY";
   const counts = { APPROVED: 0, SUBMITTED: 0, REJECTED: 0, DRAFT: 0 };
   for (const r of azubi.reports) counts[r.status]++;
   const hours = await db.reportEntry.aggregate({ where: { report: { azubiId: id, status: "APPROVED" } }, _sum: { hours: true } });
@@ -45,15 +44,17 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
           <>
             <ButtonLink href="/admin/azubis" variant="ghost"><ArrowLeft className="h-4 w-4" /> Zurück</ButtonLink>
             {me.role === "ADMIN" && <ButtonLink href={`/admin/benutzer/${azubi.id}`} variant="outline"><Pencil className="h-4 w-4" /> Stammdaten</ButtonLink>}
+            <ButtonLink href={`/admin/chat?mit=${azubi.id}`} variant="outline"><MessageCircle className="h-4 w-4" /> Chat</ButtonLink>
+            {azubi.reports.length > 0 && <ButtonLink href={`/api/pdf?azubi=${azubi.id}`} variant="outline"><FileDown className="h-4 w-4" /> Berichtsheft (PDF)</ButtonLink>}
             {missing.length > 0 && (
-              <form action={remindAzubi}><input type="hidden" name="azubiId" value={azubi.id} /><input type="hidden" name="weeks" value={missing.slice(0, 5).map((w) => weekLabel(w.year, w.week)).join(", ")} /><SubmitButton variant="outline"><BellRing className="h-4 w-4" /> Erinnern</SubmitButton></form>
+              <form action={remindAzubi}><input type="hidden" name="azubiId" value={azubi.id} /><input type="hidden" name="weeks" value={missing.slice(0, 5).map((w) => w.label).join(", ")} /><SubmitButton variant="outline"><BellRing className="h-4 w-4" /> Erinnern</SubmitButton></form>
             )}
           </>
         }
       />
       <QueryToast ok={sp.ok} error={sp.error} />
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {([["Genehmigt", counts.APPROVED, "success"], ["In Prüfung", counts.SUBMITTED, "brand"], ["Zurückgegeben", counts.REJECTED, "danger"], ["Entwürfe", counts.DRAFT, "neutral"], ["Fehlende Wochen", missing.length, missing.length ? "warning" : "success"]] as const).map(([l, v, t]) => (
+        {([["Genehmigt", counts.APPROVED, "success"], ["In Prüfung", counts.SUBMITTED, "brand"], ["Zurückgegeben", counts.REJECTED, "danger"], ["Entwürfe", counts.DRAFT, "neutral"], [daily ? "Fehlende Tage" : "Fehlende Wochen", missing.length, missing.length ? "warning" : "success"]] as const).map(([l, v, t]) => (
           <div key={l} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">{l}</p><p className="text-2xl font-semibold"><Badge tone={t} className="text-base">{v}</Badge></p></div>
         ))}
       </div>
@@ -62,12 +63,12 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
           <CardHeader title="Berichte" description={`${azubi.reports.length} gesamt · ${Number(hours._sum.hours ?? 0).toLocaleString("de-DE")} genehmigte Stunden`} />
           {azubi.reports.length ? (
             <Table>
-              <thead><tr><Th>Woche</Th><Th>Zeitraum</Th><Th>Abteilung</Th><Th>Status</Th><Th></Th></tr></thead>
+              <thead><tr><Th>Bericht</Th><Th>Zeitraum</Th><Th>Abteilung</Th><Th>Status</Th><Th></Th></tr></thead>
               <tbody>
                 {azubi.reports.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50">
-                    <Td className="font-medium">{weekLabel(r.year, r.week)}</Td>
-                    <Td className="whitespace-nowrap">{fmtDate(r.weekStart)} – {fmtDate(r.weekEnd)}</Td>
+                    <Td className="font-medium">{reportTitle(r)}</Td>
+                    <Td className="whitespace-nowrap">{r.type === "DAILY" ? weekLabel(r.year, r.week) : `${fmtDate(r.weekStart)} – ${fmtDate(r.weekEnd)}`}</Td>
                     <Td>{r.department?.name ?? "–"}</Td>
                     <Td><StatusBadge status={r.status} /></Td>
                     <Td className="text-right"><Link href={`/admin/berichte/${r.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">Öffnen <ChevronRight className="h-4 w-4" /></Link></Td>
@@ -81,7 +82,7 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
           <Card>
             <CardHeader title="Stammdaten" />
             <dl className="divide-y divide-slate-100 text-sm">
-              {([["E-Mail", azubi.email], ["Ausbildung", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Ausbildungsjahr", azubi.ausbildungsjahr ?? "–"], ["Letzter Login", fmtDate(azubi.lastLoginAt, "dd.MM.yyyy HH:mm")]] as [string, React.ReactNode][]).map(([k, v]) => (
+              {([["E-Mail", azubi.email], ["Berichtstyp", daily ? "Tagesberichte" : azubi.berichtsheftTyp ? "Wochenberichte" : "noch nicht gewählt"], ["Ausbildung", `${fmtDate(azubi.ausbildungsbeginn)} – ${fmtDate(azubi.ausbildungsende)}`], ["Ausbildungsjahr", azubi.ausbildungsjahr ?? "–"], ["Letzter Login", fmtDate(azubi.lastLoginAt, "dd.MM.yyyy HH:mm")]] as [string, React.ReactNode][]).map(([k, v]) => (
                 <div key={k} className="grid grid-cols-[120px_1fr] px-5 py-2"><dt className="text-slate-500">{k}</dt><dd className="font-medium break-all">{v}</dd></div>
               ))}
             </dl>
@@ -96,8 +97,8 @@ export default async function AzubiAkte({ params, searchParams }: { params: Prom
           </Card>
           {missing.length > 0 && (
             <Card className="border-amber-200">
-              <CardHeader title="Fehlende Wochen" description={`${missing.length} ohne Bericht`} />
-              <CardBody className="flex flex-wrap gap-1">{missing.slice(0, 20).map((w) => <Badge key={`${w.year}-${w.week}`} tone="warning">{weekLabel(w.year, w.week)}</Badge>)}{missing.length > 20 && <Badge>+{missing.length - 20}</Badge>}</CardBody>
+              <CardHeader title={daily ? "Fehlende Werktage" : "Fehlende Wochen"} description={`${missing.length} ohne Bericht`} />
+              <CardBody className="flex flex-wrap gap-1">{missing.slice(0, 20).map((w) => <Badge key={w.key} tone="warning">{w.label}</Badge>)}{missing.length > 20 && <Badge>+{missing.length - 20}</Badge>}</CardBody>
             </Card>
           )}
         </div>

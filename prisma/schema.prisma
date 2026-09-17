@@ -14,6 +14,11 @@ enum Role {
   AZUBI
 }
 
+enum ReportType {
+  WEEKLY
+  DAILY
+}
+
 enum ReportStatus {
   DRAFT
   SUBMITTED
@@ -64,7 +69,7 @@ model User {
   ausbildungsjahr  Int?
   ausbildungsbeginn DateTime?
   ausbildungsende  DateTime?
-  berichtsheftTyp  String    @default("WEEKLY") // WEEKLY | DAILY
+  berichtsheftTyp  ReportType? // null = noch nicht gewählt (Onboarding)
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -77,6 +82,9 @@ model User {
   auditLogs        AuditLog[]
   templates        Template[]
   rotations        Rotation[]
+  attachments      Attachment[]
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 
   @@index([role])
   @@index([departmentId])
@@ -87,8 +95,10 @@ model Report {
   id           String       @id @default(cuid())
   azubiId      String
   azubi        User         @relation("AzubiReports", fields: [azubiId], references: [id], onDelete: Cascade)
+  type         ReportType   @default(WEEKLY)
   year         Int
   week         Int
+  day          Int          @default(0) // 0 = Wochenbericht, 1-7 = ISO-Wochentag bei Tagesbericht
   weekStart    DateTime
   weekEnd      DateTime
   status       ReportStatus @default(DRAFT)
@@ -107,8 +117,9 @@ model Report {
 
   entries      ReportEntry[]
   comments     Comment[]
+  attachments  Attachment[]
 
-  @@unique([azubiId, year, week])
+  @@unique([azubiId, year, week, day])
   @@index([status])
   @@index([departmentId])
 }
@@ -190,4 +201,33 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  reportId     String
+  report       Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  filename     String
+  mimeType     String
+  size         Int
+  data         Bytes
+  createdAt    DateTime @default(now())
+
+  @@index([reportId])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  senderId    String
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User      @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  text        String
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, readAt])
 }

@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BookText, Building2, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, ScrollText, Sparkles, UserCircle, Users } from "lucide-react";
+import { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Sparkles, UserCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const NAV_ICONS = { Bell, BookText, Building2, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, ScrollText, Sparkles, UserCircle, Users };
+export const NAV_ICONS = { Bell, BookText, Building2, CalendarDays, CalendarRange, ClipboardCheck, GraduationCap, LayoutDashboard, MessageCircle, ScrollText, Sparkles, UserCircle, Users };
 export type NavIcon = keyof typeof NAV_ICONS;
 export type NavItem = { href: string; label: string; icon: NavIcon; badge?: number; exact?: boolean };
 

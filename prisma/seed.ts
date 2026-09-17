@@ -28,7 +28,7 @@ async function main() {
   const ausbilder = await db.user.create({ data: { email: "ausbilder@example.com", passwordHash: demoPw, firstName: "Petra", lastName: "Meier", role: "AUSBILDER", departmentId: it.id } });
   await db.user.create({ data: { email: "leitung.vertrieb@example.com", passwordHash: demoPw, firstName: "Thomas", lastName: "Schulz", role: "ABTEILUNGSLEITER", departmentId: vertrieb.id } });
   const beginn = new Date(new Date().getFullYear() - 1, 7, 1);
-  const azubi1 = await db.user.create({ data: { email: "azubi@example.com", passwordHash: demoPw, firstName: "Lena", lastName: "Krüger", role: "AZUBI", departmentId: it.id, trainerId: ausbilder.id, beruf: "Fachinformatiker/in Anwendungsentwicklung", ausbildungsjahr: 2, ausbildungsbeginn: beginn, ausbildungsende: addDays(beginn, 365 * 3) } });
+  const azubi1 = await db.user.create({ data: { email: "azubi@example.com", passwordHash: demoPw, firstName: "Lena", lastName: "Krüger", role: "AZUBI", departmentId: it.id, trainerId: ausbilder.id, beruf: "Fachinformatiker/in Anwendungsentwicklung", ausbildungsjahr: 2, berichtsheftTyp: "WEEKLY", ausbildungsbeginn: beginn, ausbildungsende: addDays(beginn, 365 * 3) } });
   const azubi2 = await db.user.create({ data: { email: "azubi2@example.com", passwordHash: demoPw, firstName: "Jonas", lastName: "Weber", role: "AZUBI", departmentId: vertrieb.id, trainerId: ausbilder.id, beruf: "Kaufmann/-frau für Büromanagement", ausbildungsjahr: 1, ausbildungsbeginn: new Date(new Date().getFullYear(), 7, 1) } });
 
   await db.rotation.createMany({ data: [

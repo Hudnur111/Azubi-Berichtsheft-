@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { EntryCategory } from "@prisma/client";
 import { Check, CloudUpload, Loader2, Send, Sparkles } from "lucide-react";
-import { saveReport, submitReportById, type SavePayload } from "@/actions/reports";
+import { saveReport, saveReportStaff, submitReportById, type SavePayload } from "@/actions/reports";
 import { Button } from "@/components/ui/button";
 import { CATEGORIES, CATEGORY_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -12,14 +12,17 @@ export type EditorTemplate = { id: string; title: string; content: string; categ
 
 const NON_WORK: EntryCategory[] = ["URLAUB", "KRANK", "FEIERTAG"];
 
-export function ReportEditor({ reportId, initialSummary, initialEntries, templates, weekdays }: {
-  reportId: string; initialSummary: string; initialEntries: EditorEntry[]; templates: EditorTemplate[]; weekdays: string[];
+export function ReportEditor({ reportId, initialSummary, initialEntries, templates, weekdays, mode = "azubi" }: {
+  reportId: string; initialSummary: string; initialEntries: EditorEntry[]; templates: EditorTemplate[]; weekdays: string[]; mode?: "azubi" | "staff";
 }) {
+  const staff = mode === "staff";
+  const save = staff ? saveReportStaff : saveReport;
   const [entries, setEntries] = useState(initialEntries);
   const [summary, setSummary] = useState(initialSummary);
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState("Gespeichert");
   const [tplFor, setTplFor] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
@@ -30,19 +33,19 @@ export function ReportEditor({ reportId, initialSummary, initialEntries, templat
   const persist = useCallback(() => {
     setStatus("saving");
     startTransition(async () => {
-      const res = await saveReport(payload);
+      const res = await save(payload);
       if (res?.error) { setStatus("error"); setError(res.error); }
-      else { setStatus("saved"); setError(null); setDirty(false); }
+      else { setStatus("saved"); setError(null); setDirty(false); setSavedMsg(res?.message ?? "Gespeichert"); }
     });
-  }, [payload]);
+  }, [payload, save]);
 
   // Autosave 1,5 s nach letzter Änderung
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || staff) return; // Ausbilder speichern bewusst manuell (jede Speicherung informiert den Azubi)
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(persist, 1500);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [dirty, payload, persist]);
+  }, [dirty, payload, persist, staff]);
 
   // Warnung bei ungespeicherten Änderungen
   useEffect(() => {
@@ -99,11 +102,11 @@ export function ReportEditor({ reportId, initialSummary, initialEntries, templat
         </p>
         <div className="flex items-center gap-2 text-xs">
           {status === "saving" && <span className="flex items-center gap-1 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Speichert …</span>}
-          {status === "saved" && !dirty && <span className="flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> Gespeichert</span>}
+          {status === "saved" && !dirty && <span className="flex items-center gap-1 text-emerald-600"><Check className="h-3.5 w-3.5" /> {savedMsg}</span>}
           {status === "error" && <span className="text-red-600">{error}</span>}
           {dirty && status !== "saving" && <span className="text-amber-600">Ungespeichert</span>}
           <Button size="sm" variant="outline" type="button" onClick={persist} disabled={status === "saving" || submitting}><CloudUpload className="h-3.5 w-3.5" /> Speichern</Button>
-          <Button size="sm" variant="success" type="button" onClick={submit} disabled={submitting}>{submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Zur Prüfung einreichen</Button>
+          {!staff && <Button size="sm" variant="success" type="button" onClick={submit} disabled={submitting}>{submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Zur Prüfung einreichen</Button>}
         </div>
       </div>
 

@@ -11,7 +11,7 @@ import { Empty } from "@/components/ui/empty";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SelectNav } from "@/components/ui/select-nav";
 import { ButtonLink } from "@/components/ui/button";
-import { fmtDate, fmtDateTime, weekLabel } from "@/lib/dates";
+import { fmtDate, fmtDateTime, reportTitle } from "@/lib/dates";
 import { STATUS_LABELS } from "@/lib/labels";
 import { fullName } from "@/lib/utils";
 
@@ -56,12 +56,12 @@ export default async function AlleBerichte({ searchParams }: { searchParams: Pro
         />
         {reports.length ? (
           <Table>
-            <thead><tr><Th>Azubi</Th><Th>Woche</Th><Th>Abteilung</Th><Th>Status</Th><Th>Geprüft</Th><Th></Th></tr></thead>
+            <thead><tr><Th>Azubi</Th><Th>Bericht</Th><Th>Abteilung</Th><Th>Status</Th><Th>Geprüft</Th><Th></Th></tr></thead>
             <tbody>
               {reports.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50">
                   <Td className="font-medium text-slate-900">{fullName(r.azubi)}</Td>
-                  <Td className="whitespace-nowrap">{weekLabel(r.year, r.week)} <span className="text-xs text-slate-500">({fmtDate(r.weekStart)})</span></Td>
+                  <Td className="whitespace-nowrap">{reportTitle(r)} <span className="text-xs text-slate-500">({fmtDate(r.weekStart)})</span></Td>
                   <Td>{r.department?.name ?? "–"}</Td>
                   <Td><StatusBadge status={r.status} /></Td>
                   <Td className="text-xs text-slate-500">{r.reviewer ? `${fullName(r.reviewer)} · ${fmtDateTime(r.reviewedAt)}` : "–"}</Td>

@@ -3,7 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["@prisma/client", "bcryptjs"],
+  serverExternalPackages: ["@prisma/client", "bcryptjs", "@react-pdf/renderer"],
+  experimental: { serverActions: { bodySizeLimit: "5mb" } },
   headers: async () => [
     {
       source: "/(.*)",

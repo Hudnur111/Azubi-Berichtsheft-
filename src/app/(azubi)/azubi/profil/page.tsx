@@ -3,12 +3,15 @@ import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PasswordForm } from "@/components/shell/password-form";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { QueryToast } from "@/components/ui/toast";
+import { chooseReportType } from "@/actions/reports";
 import { fmtDate } from "@/lib/dates";
 import { fullName } from "@/lib/utils";
 
-export default async function ProfilPage({ searchParams }: { searchParams: Promise<{ pw?: string }> }) {
+export default async function ProfilPage({ searchParams }: { searchParams: Promise<{ pw?: string; ok?: string }> }) {
   const me = await requireAzubi();
-  const { pw } = await searchParams;
+  const { pw, ok } = await searchParams;
   const [trainer, rotations] = await Promise.all([
     me.trainerId ? db.user.findUnique({ where: { id: me.trainerId }, select: { firstName: true, lastName: true, email: true } }) : null,
     db.rotation.findMany({ where: { azubiId: me.id }, orderBy: { startDate: "asc" }, include: { department: { select: { name: true } } } }),
@@ -22,8 +25,21 @@ export default async function ProfilPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Profil" />
+      <QueryToast ok={ok} />
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
+          <Card>
+            <CardHeader title="Berichtstyp" description="Gilt für neu angelegte Berichte. Bestehende Berichte bleiben erhalten." />
+            <CardBody>
+              <form action={chooseReportType} className="flex flex-wrap items-center gap-4">
+                <input type="hidden" name="back" value="profil" />
+                {(["WEEKLY", "DAILY"] as const).map((t) => (
+                  <label key={t} className="flex items-center gap-2 text-sm"><input type="radio" name="type" value={t} defaultChecked={me.berichtsheftTyp === t} className="h-4 w-4" /> {t === "WEEKLY" ? "Wochenbericht" : "Tagesbericht"}</label>
+                ))}
+                <SubmitButton size="sm" variant="outline">Speichern</SubmitButton>
+              </form>
+            </CardBody>
+          </Card>
           <Card>
             <CardHeader title="Stammdaten" description="Änderungen bitte über Ausbilder/in oder Admin." />
             <dl className="divide-y divide-slate-100">

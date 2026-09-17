@@ -1,19 +1,23 @@
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { reportScope, ROLE_LABELS } from "@/lib/permissions";
+import { unreadMessages } from "@/lib/chat";
 import { AppShell, type NavItem } from "@/components/shell/app-shell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
-  const [unread, pending] = await Promise.all([
+  const [unread, pending, chat] = await Promise.all([
     db.notification.count({ where: { userId: user.id, read: false } }),
     db.report.count({ where: { status: "SUBMITTED", ...reportScope(user) } }),
+    unreadMessages(user.id),
   ]);
   const nav: NavItem[] = [
     { href: "/admin", label: "Dashboard", icon: "LayoutDashboard", exact: true },
     { href: "/admin/pruefung", label: "Prüfung", icon: "ClipboardCheck", badge: pending || undefined },
     { href: "/admin/azubis", label: "Auszubildende", icon: "GraduationCap" },
     { href: "/admin/berichte", label: "Alle Berichte", icon: "BookText" },
+    { href: "/admin/kalender", label: "Kalender", icon: "CalendarDays" },
+    { href: "/admin/chat", label: "Chat", icon: "MessageCircle", badge: chat || undefined },
     { href: "/admin/durchlaufplan", label: "Durchlaufplan", icon: "CalendarRange" },
     { href: "/admin/vorlagen", label: "Textbausteine", icon: "Sparkles" },
     ...(user.role === "ADMIN"
