@@ -1,4 +1,5 @@
 /* Demo-DB: Liefert statische Demo-Daten wenn DATABASE_URL nicht gesetzt ist. */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const DEMO_ADMIN = {
   id: "demo-admin",
@@ -58,7 +59,6 @@ export const DEMO_AZUBI = {
 
 const DEMO_USERS = [DEMO_ADMIN, DEMO_AZUBI];
 
-function noop() {}
 const asyncNoop = async () => {};
 const asyncNull = async () => null;
 const asyncZero = async () => 0;
