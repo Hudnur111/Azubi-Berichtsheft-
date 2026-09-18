@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db, isDemoMode } from "@/lib/db";
 import { portalMode } from "@/lib/utils";
 import { AuthLayout } from "@/components/shell/auth-layout";
 import { Alert } from "@/components/ui/alert";
@@ -14,12 +14,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const user = await getCurrentUser();
   if (user) redirect(user.role === "AZUBI" ? "/azubi" : "/admin");
-  if (!(await db.user.count({ where: { role: "ADMIN" } }))) redirect("/setup");
+  if (!isDemoMode && !(await db.user.count({ where: { role: "ADMIN" } }))) redirect("/setup");
   const mode = portalMode();
   const title = mode === "azubi" ? "Azubi-Portal" : mode === "admin" ? "Ausbilder-Portal" : "Anmelden";
 
   return (
     <AuthLayout title={title} subtitle="Mit Benutzername oder E-Mail anmelden.">
+      {isDemoMode && (
+        <Alert tone="info" className="mt-4">
+          <strong>Demo-Modus</strong> — Ausbilder: <code>admin / demo123</code> · Azubi: <code>azubi / demo123</code>
+        </Alert>
+      )}
       {sp.ok && <Alert tone="success" className="mt-4">{sp.ok}</Alert>}
       {sp.error && <Alert tone="error" className="mt-4">{sp.error}</Alert>}
       {sp.portal && <Alert tone="info" className="mt-4">Dieses Deployment ist das {sp.portal === "azubi" ? "Azubi" : "Ausbilder"}-Portal. Für das andere Portal bitte die jeweilige Adresse verwenden.</Alert>}

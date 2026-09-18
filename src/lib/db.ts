@@ -1,11 +1,18 @@
 import { PrismaClient } from "@prisma/client";
+import { createDemoDb } from "./demo-db";
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+export const isDemoMode = !process.env.DATABASE_URL;
 
-export const db =
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalForPrisma = globalThis as unknown as { prisma?: any };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const db: PrismaClient & Record<string, any> =
   globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  (isDemoMode
+    ? createDemoDb()
+    : new PrismaClient({
+        log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+      }));
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
