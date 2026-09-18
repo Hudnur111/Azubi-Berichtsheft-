@@ -2,6 +2,7 @@ import { ImageOff, Upload } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { BUNDESLAENDER, getSettings } from "@/lib/settings";
 import { mailEnabled } from "@/lib/mail";
+import { isDemoMode } from "@/lib/demo-mode";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { QueryToast } from "@/components/ui/toast";
@@ -15,7 +16,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
   const sp = await searchParams;
   const s = await getSettings();
   const env = [
-    ["Datenbank", !!process.env.DATABASE_URL], ["AUTH_SECRET", (process.env.AUTH_SECRET ?? "").length >= 32], ["E-Mail-Versand (RESEND_API_KEY + MAIL_FROM)", mailEnabled()],
+    [isDemoMode ? "Datenbank (Demo-Modus: In-Memory, nicht dauerhaft)" : "Datenbank", isDemoMode || !!process.env.DATABASE_URL], ["AUTH_SECRET", (process.env.AUTH_SECRET ?? "").length >= 32], ["E-Mail-Versand (RESEND_API_KEY + MAIL_FROM)", mailEnabled()],
     ["Cron-Schutz (CRON_SECRET)", !!process.env.CRON_SECRET], ["APP_URL (für Links in E-Mails)", !!process.env.APP_URL || !!process.env.VERCEL_PROJECT_PRODUCTION_URL],
   ] as const;
   return (

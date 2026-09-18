@@ -11,9 +11,30 @@ import { audit } from "@/lib/audit";
 import { appUrl, mailEnabled, mailLayout, sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { loginGroupFor, usernameRegex, type ActionState } from "@/lib/utils";
-import { DEMO_ADMIN, DEMO_AZUBI } from "@/lib/demo-db";
+import { DEMO_ACCOUNTS } from "@/lib/demo-data";
 
 const MAX_FAILED = 8; // Fehlversuche je Kennung in 15 Minuten
+
+/* ---------- Demo-Modus: Anmeldung per Klick (ohne Passwort) ---------- */
+
+export async function demoLoginAction(formData: FormData) {
+  if (!isDemoMode) redirect("/login");
+  const id = String(formData.get("userId") ?? "");
+  const account = DEMO_ACCOUNTS.find((a) => a.id === id);
+  const user = account ? await db.user.findUnique({ where: { id: account.id } }) : null;
+  if (!user || !user.active) redirect(`/login?error=${encodeURIComponent("Demo-Konto nicht gefunden.")}`);
+  const mode = (process.env.PORTAL_MODE ?? "both").toLowerCase();
+  if (mode === "azubi" && user.role !== "AZUBI") redirect("/login?portal=azubi");
+  if (mode === "admin" && user.role === "AZUBI") redirect("/login?portal=admin");
+
+  await createSessionCookie(user, true);
+  await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  await audit(user.id, "LOGIN", "User", user.id, { demo: true });
+
+  const next = String(formData.get("next") ?? "");
+  const home = user.role === "AZUBI" ? "/azubi" : "/admin";
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : home);
+}
 
 const loginSchema = z.object({
   login: z.string().trim().min(1, "Benutzername oder E-Mail fehlt."),
@@ -34,20 +55,6 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
   const { password, next, remember } = parsed.data;
   const login = parsed.data.login.toLowerCase();
-
-  if (isDemoMode) {
-    const group = parsed.data.group;
-    const demoUser =
-      login === "admin" && group === "STAFF" && password === "demo123"
-        ? DEMO_ADMIN
-        : login === "azubi" && group === "AZUBI" && password === "demo123"
-          ? DEMO_AZUBI
-          : null;
-    if (!demoUser)
-      return { error: 'Demo-Zugangsdaten: "admin" / "demo123" (Ausbilder) oder "azubi" / "demo123" (Azubi).' };
-    await createSessionCookie(demoUser, remember === "on");
-    redirect(demoUser.role === "AZUBI" ? "/azubi" : "/admin");
-  }
   const mode = (process.env.PORTAL_MODE ?? "both").toLowerCase();
   const group = mode === "azubi" ? "AZUBI" : mode === "admin" ? "STAFF" : parsed.data.group;
 

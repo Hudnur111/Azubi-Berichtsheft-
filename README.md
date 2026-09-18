@@ -49,7 +49,29 @@ Beide Portale liegen in **einer Codebasis**. Über die Umgebungsvariable `PORTAL
 
 Next.js 15 (App Router, Server Actions) · TypeScript · Tailwind CSS 4 · Prisma 6 · PostgreSQL · JWT-Session (jose) · bcrypt
 
-## Lokal starten
+## Demo-Modus (ohne Datenbank)
+
+Ohne `DATABASE_URL` (oder mit `DEMO_MODE=true`) startet die App als **Demo**: eine In-Memory-Datenbank mit fiktiven Daten ersetzt PostgreSQL, und auf der Login-Seite genügt ein Klick auf ein Konto – kein Passwort nötig. Alle Funktionen (Berichte schreiben, einreichen, prüfen, Chat, Kalender, PDF/CSV-Export, Benutzer- und Abteilungsverwaltung, Einstellungen, Audit-Log) sind nutzbar; Änderungen bleiben erhalten, bis der Server neu startet (auf Vercel/Netlify: bis zum nächsten Kaltstart der Function).
+
+```bash
+npm install
+npm run dev            # → http://localhost:3000/login, Konto anklicken
+npm run demo:check     # Selbsttest der In-Memory-Datenbank
+```
+
+| Konto (Klick) | Rolle | Was man sieht |
+|---|---|---|
+| Sabine Hoffmann | Administrator | Benutzer & Rollen, Abteilungen, Einstellungen, Audit-Log |
+| Petra Meier | Ausbilderin (IT) | Prüfwarteschlange, Azubi-Akten, Durchlaufplan, Chat |
+| Thomas Schulz | Abteilungsleiter (Vertrieb) | Azubis mit Einsatz im Vertrieb |
+| Lena Krüger | Azubi, Wochenberichte | 2 Jahre Berichte, Entwurf, Rückgabe, fehlende Woche |
+| Jonas Weber | Azubi, Tagesberichte | Tagesberichte, fehlende Tage |
+| Max Becker | Azubi, Wochenberichte | Rückstand, überfällige Prüfung |
+
+Klassische Anmeldung: Benutzername (z. B. `petra.meier`, `lena.krueger`) mit Passwort `demo123`. Registrierung testen: Einladungscode `DEMO2026` (Mia Schmidt).
+Für den Produktivbetrieb `DATABASE_URL` setzen (und ggf. `DEMO_MODE=false`).
+
+## Lokal starten (mit Datenbank)
 
 ```bash
 cp .env.example .env          # DATABASE_URL, AUTH_SECRET anpassen
@@ -99,7 +121,7 @@ Die App läuft auch auf Netlify (Next.js App Router mit Server Actions über `@n
 1. **Datenbank**: Postgres anlegen (Neon, Supabase, Vercel Postgres, …) und `DATABASE_URL` notieren.
 2. **Netlify-Site** aus diesem Repository anlegen, Branch `azubi` bzw. `admin` als Deploy-Branch wählen (analog zum Vercel-Setup: entweder zwei Sites für die zwei Portale, oder eine Site mit `PORTAL_MODE=both`).
 3. **Build-Command**: `netlify.toml` setzt bereits `npm run netlify-build` (führt `prisma generate`, `prisma migrate deploy` und `next build` aus). Falls die Netlify-UI einen eigenen Build-Command überschreibt, dort ebenfalls `npm run netlify-build` eintragen.
-4. **Umgebungsvariablen** unter *Site configuration → Environment variables* setzen: `DATABASE_URL`, `AUTH_SECRET` (min. 32 Zeichen), `PORTAL_MODE`, `CRON_SECRET`. Ohne `DATABASE_URL` schlägt der Build fehl (Prisma kann sich nicht verbinden).
+4. **Umgebungsvariablen** unter *Site configuration → Environment variables* setzen: `DATABASE_URL`, `AUTH_SECRET` (min. 32 Zeichen), `PORTAL_MODE`, `CRON_SECRET`. Ohne `DATABASE_URL` läuft die Site im Demo-Modus (Migrationen werden dann im Build übersprungen).
 5. **Cron**: `vercel.json` wird auf Netlify nicht ausgewertet – der tägliche Erinnerungs-Cron (`/api/cron/daily`) braucht hier einen externen Aufruf, z. B. eine [Netlify Scheduled Function](https://docs.netlify.com/functions/scheduled-functions/) oder einen externen Dienst (cron-job.org, GitHub Actions `schedule`), der täglich `curl -H "Authorization: Bearer $CRON_SECRET" https://<site>/api/cron/daily` aufruft.
 6. Ersten Admin anlegen: `/setup` öffnen (nur solange kein Admin existiert) oder `SEED_DEMO=false npm run db:seed` mit der Produktions-`DATABASE_URL` ausführen.
 7. Optional wie bei Vercel: `RESEND_API_KEY`, `MAIL_FROM`, `APP_URL`.
@@ -117,6 +139,7 @@ Alle Seiten sind serverseitig dynamisch gerendert (`export const dynamic = "forc
 | `npm run db:deploy` | Migrationen anwenden |
 | `npm run db:seed` | Admin + Demo-Daten |
 | `npm run db:studio` | Prisma Studio |
+| `npm run demo:check` | Selbsttest der In-Memory-Demo-Datenbank |
 
 ## Rollen & Sichtbarkeit
 

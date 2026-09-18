@@ -4,6 +4,7 @@ import { Brand } from "./auth-layout";
 import type { CurrentUser } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
 import { ROLE_LABELS } from "@/lib/permissions";
+import { isDemoMode } from "@/lib/demo-mode";
 import { fullName, initials } from "@/lib/utils";
 import { NavLinks, type NavItem } from "./nav-links";
 import { NotificationBell } from "./notification-bell";
@@ -39,6 +40,13 @@ export function AppShell({ user, nav, portal, unread, children }: { user: Curren
             {user.department ? <>Abteilung: <span className="font-medium text-slate-700">{user.department.name}</span></> : portal}
           </div>
           <div className="flex items-center gap-2">
+            {isDemoMode && (
+              <form action={logoutAction}>
+                <button title="Demo-Modus: Daten sind fiktiv und werden beim Neustart zurückgesetzt. Klicken, um das Konto zu wechseln." className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100">
+                  Demo · Konto wechseln
+                </button>
+              </form>
+            )}
             <NotificationBell unread={unread} href={user.role === "AZUBI" ? "/azubi/benachrichtigungen" : "/admin/benachrichtigungen"} />
             <form action={logoutAction} className="lg:hidden">
               <button title="Abmelden" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><LogOut className="h-4 w-4" /></button>
