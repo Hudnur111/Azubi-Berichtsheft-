@@ -92,6 +92,20 @@ Demo-Daten lassen sich mit `SEED_DEMO=false` abschalten; dann wird nur der Admin
 
 Health-Check: `GET /api/health`. Cron manuell testen: `curl -H "Authorization: Bearer $CRON_SECRET" https://<domain>/api/cron/daily`.
 
+## Deployment auf Netlify
+
+Die App läuft auch auf Netlify (Next.js App Router mit Server Actions über `@netlify/plugin-nextjs`, in `netlify.toml` bereits deklariert – Netlify installiert das Plugin automatisch).
+
+1. **Datenbank**: Postgres anlegen (Neon, Supabase, Vercel Postgres, …) und `DATABASE_URL` notieren.
+2. **Netlify-Site** aus diesem Repository anlegen, Branch `azubi` bzw. `admin` als Deploy-Branch wählen (analog zum Vercel-Setup: entweder zwei Sites für die zwei Portale, oder eine Site mit `PORTAL_MODE=both`).
+3. **Build-Command**: `netlify.toml` setzt bereits `npm run netlify-build` (führt `prisma generate`, `prisma migrate deploy` und `next build` aus). Falls die Netlify-UI einen eigenen Build-Command überschreibt, dort ebenfalls `npm run netlify-build` eintragen.
+4. **Umgebungsvariablen** unter *Site configuration → Environment variables* setzen: `DATABASE_URL`, `AUTH_SECRET` (min. 32 Zeichen), `PORTAL_MODE`, `CRON_SECRET`. Ohne `DATABASE_URL` schlägt der Build fehl (Prisma kann sich nicht verbinden).
+5. **Cron**: `vercel.json` wird auf Netlify nicht ausgewertet – der tägliche Erinnerungs-Cron (`/api/cron/daily`) braucht hier einen externen Aufruf, z. B. eine [Netlify Scheduled Function](https://docs.netlify.com/functions/scheduled-functions/) oder einen externen Dienst (cron-job.org, GitHub Actions `schedule`), der täglich `curl -H "Authorization: Bearer $CRON_SECRET" https://<site>/api/cron/daily` aufruft.
+6. Ersten Admin anlegen: `/setup` öffnen (nur solange kein Admin existiert) oder `SEED_DEMO=false npm run db:seed` mit der Produktions-`DATABASE_URL` ausführen.
+7. Optional wie bei Vercel: `RESEND_API_KEY`, `MAIL_FROM`, `APP_URL`.
+
+Alle Seiten sind serverseitig dynamisch gerendert (`export const dynamic = "force-dynamic"` im Root-Layout) – nichts wird beim Build statisch vorgerendert, daher wird `DATABASE_URL` nur zur Laufzeit und für `prisma migrate deploy` im Build benötigt, nicht für die Next.js-Seitengenerierung selbst.
+
 ## Scripts
 
 | Befehl | Zweck |

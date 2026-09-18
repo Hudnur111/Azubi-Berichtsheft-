@@ -15,6 +15,14 @@ const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#1f3fe6", width: "device-width", initialScale: 1 };
 
+/**
+ * Diese App ist durchgehend live/DB-gestützt (Session, Firmeneinstellungen, Berichte).
+ * "force-dynamic" auf dem Root-Layout verhindert, dass Next.js irgendeine Seite beim
+ * Build statisch vorrendert – sonst würde z. B. /setup während "next build" die
+ * Datenbank abfragen und ohne DATABASE_URL zur Build-Zeit (z. B. auf Netlify) crashen.
+ */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
