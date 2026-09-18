@@ -15,6 +15,9 @@ export type SessionPayload = {
 function secret() {
   const s = process.env.AUTH_SECRET;
   if (!s || s.length < 16) {
+    if (!process.env.DATABASE_URL) {
+      return new TextEncoder().encode("demo-mode-only-secret-not-for-prod!");
+    }
     throw new Error("AUTH_SECRET fehlt oder ist zu kurz (min. 16 Zeichen).");
   }
   return new TextEncoder().encode(s);

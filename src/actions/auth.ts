@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import { createHash, randomBytes } from "node:crypto";
 import { subMinutes } from "date-fns";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { db, isDemoMode } from "@/lib/db";
 import { createSessionCookie, destroySessionCookie, requireUser } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
 import { appUrl, mailEnabled, mailLayout, sendMail } from "@/lib/mail";
 import { getSettings } from "@/lib/settings";
 import { loginGroupFor, usernameRegex, type ActionState } from "@/lib/utils";
+import { DEMO_ADMIN, DEMO_AZUBI } from "@/lib/demo-db";
 
 const MAX_FAILED = 8; // Fehlversuche je Kennung in 15 Minuten
 
@@ -33,6 +34,20 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Ungültige Eingabe." };
   const { password, next, remember } = parsed.data;
   const login = parsed.data.login.toLowerCase();
+
+  if (isDemoMode) {
+    const group = parsed.data.group;
+    const demoUser =
+      login === "admin" && group === "STAFF" && password === "demo123"
+        ? DEMO_ADMIN
+        : login === "azubi" && group === "AZUBI" && password === "demo123"
+          ? DEMO_AZUBI
+          : null;
+    if (!demoUser)
+      return { error: 'Demo-Zugangsdaten: "admin" / "demo123" (Ausbilder) oder "azubi" / "demo123" (Azubi).' };
+    await createSessionCookie(demoUser, remember === "on");
+    redirect(demoUser.role === "AZUBI" ? "/azubi" : "/admin");
+  }
   const mode = (process.env.PORTAL_MODE ?? "both").toLowerCase();
   const group = mode === "azubi" ? "AZUBI" : mode === "admin" ? "STAFF" : parsed.data.group;
 
