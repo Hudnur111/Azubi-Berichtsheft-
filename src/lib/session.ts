@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import type { Role } from "@prisma/client";
+import { isDemoMode } from "./demo-mode";
 
 export const SESSION_COOKIE = "bh_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12h
@@ -15,9 +16,8 @@ export type SessionPayload = {
 function secret() {
   const s = process.env.AUTH_SECRET;
   if (!s || s.length < 16) {
-    if (!process.env.DATABASE_URL) {
-      return new TextEncoder().encode("demo-mode-only-secret-not-for-prod!");
-    }
+    // Im Demo-Modus reicht ein fester Schlüssel – es gibt keine echten Daten zu schützen.
+    if (isDemoMode) return new TextEncoder().encode("berichtsheft-demo-secret-nicht-fuer-produktion");
     throw new Error("AUTH_SECRET fehlt oder ist zu kurz (min. 16 Zeichen).");
   }
   return new TextEncoder().encode(s);
